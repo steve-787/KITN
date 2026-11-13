@@ -49,6 +49,9 @@ namespace KITN
             else Diag.Error("UI_LAYOUT", _uiLayout.LastError, "Loading window positions failed; using the default layout and preserving the file");
             _window.Layout = new PersistentWindowLayout(_uiLayout, "autopilot");
             _missionTimeWindow.Layout = new PersistentWindowLayout(_uiLayout, "mission_time");
+            _window.Settings = _missionTimeWindow.Settings = _uiLayout;
+            _window.Layout.Peer = _missionTimeWindow.Layout;
+            _missionTimeWindow.Layout.Peer = _window.Layout;
             try
             {
                 _missionAltitude = new MissionAltitudeDisplay(_patches, () => _missionTimeOpen);
@@ -229,19 +232,22 @@ namespace KITN
             GameLocalization.Refresh();
             bool windowWasOpen = _windowOpen, timerWasOpen = _missionTimeOpen;
             bool timerDrawn = false;
+            _window.Layout.Enabled = _windowOpen;
+            _missionTimeWindow.Layout.Enabled = _missionTimeOpen;
             try
             {
                 if (_windowOpen)
                 {
                     string action = _window.Draw(ref _windowOpen, _profile, _guidance, _flightDisplay,
                         _missionClock, _physicsHook != null, _pendingAction != null, _landing);
-                    if (action == "timer") _missionTimeOpen = true;
+                    if (action == "timer") _missionTimeOpen = !_missionTimeOpen;
                     else if (_pendingAction == null && action != null) _pendingAction = action;
                 }
                 if (_missionTimeOpen)
                 {
+                    _missionTimeWindow.Layout.Enabled = true;
                     string action = _missionTimeWindow.Draw(ref _missionTimeOpen, _missionClock,
-                        _profile, _guidance.CurrentState, _pendingAction != null, _landing);
+                        _profile, _guidance.CurrentState, _pendingAction != null, _landing, _flightDisplay);
                     timerDrawn = _missionTimeWindow.IsVisible;
                     if (_pendingAction == null && action != null) _pendingAction = action;
                 }
@@ -253,6 +259,9 @@ namespace KITN
             finally
             {
                 if (!_missionTimeOpen || !timerDrawn) _missionAltitude?.Release();
+                _window.Layout.Enabled = _windowOpen;
+                _missionTimeWindow.Layout.Enabled = _missionTimeOpen && timerDrawn;
+                PersistentWindowLayout.DrawGuides(_window.Layout, _missionTimeWindow.Layout);
                 SaveUiLayout((windowWasOpen && !_windowOpen) || (timerWasOpen && !_missionTimeOpen));
             }
         }

@@ -1,0 +1,139 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>KITN.NativeUi.Tests</AssemblyName>
+    <RootNamespace>KITN.NativeUi.Tests</RootNamespace>
+    <NoWarn>MSB3277;CS1705;CA1416</NoWarn>
+    <!-- Path to Kitten Space Agency installation -->
+    <KSAPath>K:\Games\Kitten Space Agency</KSAPath>
+    <OutputType>Exe</OutputType>
+    <UseAppHost>false</UseAppHost>
+    <RuntimeFrameworkVersion>10.0.0</RuntimeFrameworkVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Reflection.DispatchProxy">
+      <HintPath>$(KSAPath)\System.Reflection.DispatchProxy.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Core .NET 10 references from KSA directory -->
+    <Reference Include="System.Private.CoreLib">
+      <HintPath>$(KSAPath)\System.Private.CoreLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Runtime">
+      <HintPath>$(KSAPath)\System.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Collections">
+      <HintPath>$(KSAPath)\System.Collections.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Console">
+      <HintPath>$(KSAPath)\System.Console.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>$(KSAPath)\System.Numerics.Vectors.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- StarMap Mod Loader API -->
+    <Reference Include="StarMap.API">
+      <HintPath>C:\Users\karst\.nuget\packages\starmap.api\0.5.4\lib\net10.0\StarMap.API.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Kitten Space Agency assemblies -->
+    <Reference Include="KSA">
+      <HintPath>$(KSAPath)\KSA.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui">
+      <HintPath>$(KSAPath)\Brutal.ImGui.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImPlot">
+      <HintPath>$(KSAPath)\Brutal.ImPlot.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui.Abstractions">
+      <HintPath>$(KSAPath)\Brutal.ImGui.Abstractions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Core">
+      <HintPath>$(KSAPath)\Brutal.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Localization">
+      <HintPath>$(KSAPath)\Brutal.Localization.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Planet.Render.Core">
+      <HintPath>$(KSAPath)\Planet.Render.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Numerics">
+      <HintPath>$(KSAPath)\Brutal.Numerics.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Maths">
+      <HintPath>$(KSAPath)\Brutal.Maths.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Strings">
+      <HintPath>$(KSAPath)\Brutal.Strings.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.IO.FileSystem">
+      <HintPath>K:\Games\Kitten Space Agency\System.IO.FileSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Runtime.InteropServices">
+      <HintPath>K:\Games\Kitten Space Agency\System.Runtime.InteropServices.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Runtime.Loader">
+      <HintPath>K:\Games\Kitten Space Agency\System.Runtime.Loader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Reflection.Primitives">
+      <HintPath>K:\Games\Kitten Space Agency\System.Reflection.Primitives.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Linq">
+      <HintPath>K:\Games\Kitten Space Agency\System.Linq.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.IO.Compression">
+      <HintPath>K:\Games\Kitten Space Agency\System.IO.Compression.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui.Extensions">
+      <HintPath>K:\Games\Kitten Space Agency\Brutal.ImGui.Extensions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="KITN">
+      <HintPath>../../KITN/bin/Release/net9.0/KITN.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml.XDocument">
+      <HintPath>$(KSAPath)\System.Xml.XDocument.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Xml.ReaderWriter">
+      <HintPath>$(KSAPath)\System.Xml.ReaderWriter.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Private.Xml.Linq">
+      <HintPath>$(KSAPath)\System.Private.Xml.Linq.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Private.Xml">
+      <HintPath>$(KSAPath)\System.Private.Xml.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
+

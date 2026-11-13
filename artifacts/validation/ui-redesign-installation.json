@@ -1,0 +1,39 @@
+{
+  "InstalledAt": "2026-11-13T20:39:51.6495150+01:00",
+  "ModPath": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN",
+  "BackupPath": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\backups\\before-ui-redesign-20261113-203951",
+  "Files": [
+    {
+      "Name": "KITN.dll",
+      "BeforeSHA256": "F850E743E24906715D3F274B10BAF8EEBFF6FB53A6A944B144FD50A39DB1757A",
+      "InstalledSHA256": "689F7CAF4056D39E594BC453DF448B4E6DDFB21BF5D486611350A8A2037234FE",
+      "Verified": true
+    },
+    {
+      "Name": "KITN.pdb",
+      "BeforeSHA256": "8BAFACF010AFBCE62D2293E60E22BCF50CF8CF3882FD845EA29171C2DB037240",
+      "InstalledSHA256": "7D93D86E8B6A51EB1298C052E058D9B19D12B0A6C117FDAB2641E61EA6678EC5",
+      "Verified": true
+    },
+    {
+      "Name": "README.md",
+      "BeforeSHA256": "18B29B6731325140ACE532E44A6E93A5205A4F5B2AA6CF5F46AEF0C2623C9728",
+      "InstalledSHA256": "86FBE6CFACE1F272A5155569CB7B43BB17F77C672EC90FEFC717B0AC901BD7AD",
+      "Verified": true
+    }
+  ],
+  "Preserved": [
+    {
+      "Name": "ui_layout.json",
+      "Hash": "5FF52CD011756777CE9D835352EDF3E9AD7A873A9ECC292D0C5E1CAD623C6A69"
+    },
+    {
+      "Name": "ui_layout.json.bak",
+      "Hash": "76147D33014F7CF6F0BA65001E6E0C60F331F70E3E033EA58DDA09D2C3E5C058"
+    },
+    {
+      "Name": "mod.toml",
+      "Hash": "306DF02207441F0E4E3C368AEEFB7055007E361E2A7333764578423E66B79484"
+    }
+  ]
+}

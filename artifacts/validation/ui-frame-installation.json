@@ -1,0 +1,39 @@
+{
+  "InstalledAt": "2026-11-13T20:56:01.8414498+01:00",
+  "ModPath": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN",
+  "BackupPath": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\backups\\before-frame-resize-fix-20261113-205601",
+  "Files": [
+    {
+      "Name": "KITN.dll",
+      "BeforeSHA256": "689F7CAF4056D39E594BC453DF448B4E6DDFB21BF5D486611350A8A2037234FE",
+      "InstalledSHA256": "6484C40733140B781B61A36D8A6B6BC36D6FD5EF3D25CFC0416C6D459B5DA80A",
+      "Verified": true
+    },
+    {
+      "Name": "KITN.pdb",
+      "BeforeSHA256": "7D93D86E8B6A51EB1298C052E058D9B19D12B0A6C117FDAB2641E61EA6678EC5",
+      "InstalledSHA256": "4A34BDDE4BA25D840D9E2A27B708E330EB254BC854B9B01A8827CB8E4E0B8708",
+      "Verified": true
+    },
+    {
+      "Name": "README.md",
+      "BeforeSHA256": "86FBE6CFACE1F272A5155569CB7B43BB17F77C672EC90FEFC717B0AC901BD7AD",
+      "InstalledSHA256": "126405726EB19829FDB892F8BA4EDF59CDE32F398C04088E51ECFFE431EB6478",
+      "Verified": true
+    }
+  ],
+  "Preserved": [
+    {
+      "Name": "ui_layout.json",
+      "Hash": "0498A679B44BF6ED99E865B167BF5BE31FD329A9BB90A3E8A259D1FA921FC71E"
+    },
+    {
+      "Name": "ui_layout.json.bak",
+      "Hash": "E744972BEC37CB95898F73DAF73637ED49CD94F72AE3CA057314940D23E7057A"
+    },
+    {
+      "Name": "mod.toml",
+      "Hash": "306DF02207441F0E4E3C368AEEFB7055007E361E2A7333764578423E66B79484"
+    }
+  ]
+}

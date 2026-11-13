@@ -6,6 +6,15 @@ using System.Text.Json.Serialization;
 
 namespace KITN
 {
+    [JsonConverter(typeof(JsonStringEnumConverter<UiTheme>))]
+    internal enum UiTheme { Retro, Modern }
+
+    internal sealed class UiPreferences
+    {
+        public UiTheme Theme { get; set; } = UiTheme.Retro;
+        public bool AutoHideInstrumentFrame { get; set; }
+    }
+
     internal sealed class UiWindowBounds
     {
         public UiWindowBounds() { }
@@ -46,6 +55,7 @@ namespace KITN
         public UiLayoutDocument() { }
         [JsonRequired] public int Version { get; set; } = 1;
         [JsonRequired] public Dictionary<string, UiWindowBounds> Windows { get; set; } = new Dictionary<string, UiWindowBounds>();
+        public UiPreferences Settings { get; set; } = new UiPreferences();
     }
 
     internal enum UiLayoutSaveResult { Unchanged, Saved, Failed }
@@ -62,6 +72,8 @@ namespace KITN
         public bool IsDirty { get; private set; }
         public Exception LastError { get; private set; }
         public int WindowCount => _windows.Count;
+        public UiTheme Theme { get; private set; } = UiTheme.Retro;
+        public bool AutoHideInstrumentFrame { get; private set; }
         public UiLayoutStore(string path) { _path = Path.GetFullPath(path); }
         public UiWindowBounds Find(string id) => _windows.TryGetValue(id, out UiWindowBounds bounds) ? bounds : null;
 
@@ -71,22 +83,42 @@ namespace KITN
             try
             {
                 var windows = new Dictionary<string, UiWindowBounds>();
+                UiTheme theme = UiTheme.Retro;
+                bool autoHide = false;
                 if (File.Exists(_path))
                 {
                     if (new FileInfo(_path).Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     UiLayoutDocument file = JsonSerializer.Deserialize<UiLayoutDocument>(stream, Json);
-                    if (file == null || file.Version != 1 || file.Windows == null || file.Windows.Count > 16)
+                    if (file == null || file.Version != 1 || file.Windows == null || file.Windows.Count > 16
+                        || file.Settings == null || !Enum.IsDefined(file.Settings.Theme))
                         throw new InvalidDataException("Unsupported UI layout format");
                     foreach (var window in file.Windows)
                         if (string.IsNullOrWhiteSpace(window.Key) || window.Key.Length > 80 || window.Value?.IsValid != true)
                             throw new InvalidDataException("Invalid UI window bounds");
                     windows = file.Windows;
+                    theme = file.Settings.Theme;
+                    autoHide = file.Settings.AutoHideInstrumentFrame;
                 }
-                _windows = windows; IsLoaded = true; IsDirty = false; _retryAfterMs = 0;
+                _windows = windows; Theme = theme; AutoHideInstrumentFrame = autoHide;
+                IsLoaded = true; IsDirty = false; _retryAfterMs = 0;
                 return true;
             }
             catch (Exception ex) { LastError = ex; return false; }
+        }
+
+        public bool SetTheme(UiTheme theme, long nowMs)
+        {
+            if (!IsLoaded || !Enum.IsDefined(theme) || Theme == theme) return false;
+            Theme = theme; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
+        public bool SetAutoHideInstrumentFrame(bool enabled, long nowMs)
+        {
+            if (!IsLoaded || AutoHideInstrumentFrame == enabled) return false;
+            AutoHideInstrumentFrame = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
         }
 
         public bool Record(string id, UiWindowBounds bounds, long nowMs)
@@ -110,7 +142,8 @@ namespace KITN
                 temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
-                    JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows }, Json);
+                    JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows,
+                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame } }, Json);
                     if (stream.Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     stream.Flush(true);
                 }

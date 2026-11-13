@@ -1,0 +1,11 @@
+[KITN] 2026-11-13T20:54:57.5031806+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+PASS native all five tabs and general Settings with Retro theme
+PASS native all five tabs and general Settings with Modern theme
+PASS native theme dropdown keyboard selection applies to the visible instruments and persists
+PASS native minimum window sizes with reachable countdown controls
+PASS native toolbar opens Settings and preserves countdown cancellation there
+PASS native German general Settings and minimum main toolbar layout
+PASS native no-vehicle instrument fallback
+PASS native both windows drag freely and Alt-drag snaps to screen center
+PASS Alt guide layer appears and disappears on modifier release
+PASS compact sizing in both themes and hover-only frame reveal without geometry changes

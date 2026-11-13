@@ -48,6 +48,8 @@ var tests = new (string Name, Action Run)[]
     ("Window layouts save automatically, survive restart and preserve independent geometry", UiLayoutTests.AutomaticPersistence),
     ("Restored layouts remain reachable after resolution and UI scale changes", UiLayoutTests.ReachableLayout),
     ("Window autosave preserves corrupt files and recovers from failed writes", UiLayoutTests.FileRecovery),
+    ("Instrument themes migrate existing layouts and persist safely", UiExperienceTests.ThemePersistence),
+    ("Window snapping aligns centers and edges without sticking or hiding controls", UiExperienceTests.Alignment),
     ("Countdown reaches zero once and mission time starts at actual launch", MissionClockTests.Launch),
     ("Mission clock formats T minus and plus with full hours, minutes and seconds", MissionClockTests.Display),
     ("Cancelled and reset countdowns cannot launch a rocket", MissionClockTests.Cancel),

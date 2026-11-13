@@ -14,6 +14,8 @@
     <Compile Include="LandingTests.cs" />
     <Compile Include="FlightPresetTests.cs" />
     <Compile Include="UiLayoutTests.cs" />
+    <Compile Include="UiExperienceTests.cs" />
+    <Compile Include="../KITN/WindowAlignment.cs" Link="WindowAlignment.cs" />
     <Compile Include="AdaptivePlanningTests.cs" />
     <Compile Include="AdaptiveFlightSimulation.cs" />
     <Compile Include="BoosterSeparationTests.cs" />

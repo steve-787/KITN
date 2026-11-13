@@ -22,6 +22,7 @@ namespace KITN
         public string VehicleName { get => HasVehicle ? _vehicleName : L10n.Get("vehicle.none"); private set => _vehicleName = value; }
         public string BodyName { get; private set; } = "—";
         public double VerticalSpeed { get; private set; }
+        public double AltitudeMeters { get; private set; } = double.NaN;
         public double DynamicPressureKpa { get; private set; }
         public double AccelerationG { get; private set; }
         public double Throttle { get; private set; }
@@ -54,6 +55,7 @@ namespace KITN
         private void UpdateCore(Vehicle vehicle, LaunchProfile profile, AscentGuidance guidance, string action)
         {
             HasVehicle = vehicle != null;
+            AltitudeMeters = double.NaN;
             if (!ReferenceEquals(vehicle, _vehicle))
             {
                 Track.Clear();
@@ -78,6 +80,7 @@ namespace KITN
                 _warningKey = "display.body_changed";
             }
             BodyName = parent is Astronomical body ? body.Id : parent.GetType().Name;
+            AltitudeMeters = vehicle.GetBarometricAltitude();
             double3 position = vehicle.GetPositionCci();
             double length = Length(position);
             double3 surfaceVelocity = vehicle.GetSurfaceVelocityCci();
