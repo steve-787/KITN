@@ -1,5 +1,5 @@
 using System.Globalization;
-using KSAAutopilot;
+using KITN;
 
 internal static class MissionClockTests
 {

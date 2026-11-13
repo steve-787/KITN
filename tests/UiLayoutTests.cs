@@ -1,12 +1,12 @@
 using System.Globalization;
-using KSAAutopilot;
+using KITN;
 
 internal static class UiLayoutTests
 {
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     private static string NewPath()
     {
-        string directory = Path.Combine(Path.GetTempPath(), "KSAAutopilot.UiLayoutTests", Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(Path.GetTempPath(), "KITN.UiLayoutTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, "ui_layout.json");
     }

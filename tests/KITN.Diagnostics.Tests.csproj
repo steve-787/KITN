@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="FlightSimulation.cs" />
+    <Compile Include="FlightDisplayTests.cs" />
+    <Compile Include="MissionClockTests.cs" />
+    <Compile Include="LandingTests.cs" />
+    <Compile Include="FlightPresetTests.cs" />
+    <Compile Include="UiLayoutTests.cs" />
+    <Compile Include="AdaptivePlanningTests.cs" />
+    <Compile Include="AdaptiveFlightSimulation.cs" />
+    <Compile Include="BoosterSeparationTests.cs" />
+    <Compile Include="LocalizationTests.cs" />
+    <Compile Include="../KITN/BoosterSeparation.cs" Link="BoosterSeparation.cs" />
+    <Compile Include="../KITN/Localization.cs" Link="Localization.cs" />
+    <Compile Include="../KITN/MissionClock.cs" Link="MissionClock.cs" />
+    <Compile Include="../KITN/LandingMath.cs" Link="LandingMath.cs" />
+    <Compile Include="../KITN/LandingTelemetry.cs" Link="LandingTelemetry.cs" />
+    <Compile Include="../KITN/FlightTrack.cs" Link="FlightTrack.cs" />
+    <Compile Include="../KITN/RoutePrediction.cs" Link="RoutePrediction.cs" />
+    <Compile Include="../KITN/AdaptiveFlightPlanner.cs" Link="AdaptiveFlightPlanner.cs" />
+    <Compile Include="../KITN/AdaptiveAscentControl.cs" Link="AdaptiveAscentControl.cs" />
+    <Compile Include="../KITN/DiagnosticFile.cs" Link="DiagnosticFile.cs" />
+    <Compile Include="../KITN/TelemetryRecord.cs" Link="TelemetryRecord.cs" />
+    <Compile Include="../KITN/GravityTurnController.cs" Link="GravityTurnController.cs" />
+    <Compile Include="../KITN/LaunchProfile.cs" Link="LaunchProfile.cs" />
+    <Compile Include="../KITN/FlightPresets.cs" Link="FlightPresets.cs" />
+    <Compile Include="../KITN/UiLayoutStore.cs" Link="UiLayoutStore.cs" />
+    <Compile Include="../KITN/OrbitInsertion.cs" Link="OrbitInsertion.cs" />
+    <Compile Include="../KITN/ThrottleActuator.cs" Link="ThrottleActuator.cs" />
+    <Compile Include="../KITN/InsertionAttitudeGate.cs" Link="InsertionAttitudeGate.cs" />
+    <None Include="Fixtures/insertion-20261112.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using KSAAutopilot;
+using KITN;
 
 internal static class LocalizationTests
 {

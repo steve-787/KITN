@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using KSAAutopilot;
+using KITN;
 
 var tests = new (string Name, Action Run)[]
 {
@@ -307,7 +307,7 @@ static void ApoapsisGuard()
 
 static void RecordedFlight()
 {
-    string path = @"C:\Users\karst\Documents\My Games\Kitten Space Agency\mods\KSAAutopilot\ksa_telemetry.csv";
+    string path = @"C:\Users\karst\Documents\My Games\Kitten Space Agency\mods\KITN\kitn_telemetry.csv";
     if (!File.Exists(path)) { Console.WriteLine("SKIP recorded flight: no local telemetry"); return; }
     using var file = new StreamReader(path);
     string[] header = ParseCsv(file.ReadLine()!);
@@ -528,7 +528,7 @@ static void TurnAerodynamicLimit()
 
 static string TempDirectory()
 {
-    string directory = Path.Combine(Path.GetTempPath(), "KSAAutopilot.Diagnostics.Tests", Guid.NewGuid().ToString("N"));
+    string directory = Path.Combine(Path.GetTempPath(), "KITN.Diagnostics.Tests", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(directory);
     return directory;
 }

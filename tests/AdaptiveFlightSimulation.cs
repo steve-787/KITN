@@ -1,4 +1,4 @@
-using KSAAutopilot;
+using KITN;
 
 internal static class AdaptiveFlightSimulation
 {

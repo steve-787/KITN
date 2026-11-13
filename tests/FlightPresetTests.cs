@@ -1,12 +1,12 @@
 using System.Globalization;
-using KSAAutopilot;
+using KITN;
 
 internal static class FlightPresetTests
 {
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     private static string PathForTest()
     {
-        string directory = Path.Combine(Path.GetTempPath(), "KSAAutopilot.PresetTests", Guid.NewGuid().ToString("N"));
+        string directory = Path.Combine(Path.GetTempPath(), "KITN.PresetTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         return Path.Combine(directory, "flight_presets.json");
     }

@@ -1,4 +1,4 @@
-using KSAAutopilot;
+using KITN;
 
 // Central gravity, rotation, drag, mass flow, minimum throttle and physical body rotation.
 // TVC uses the previous powered state; no RCS or artificial damping exists with the engine off.
