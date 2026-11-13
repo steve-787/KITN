@@ -1,0 +1,29 @@
+# Generated .NET output and editor state
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+
+# Local flight logs, telemetry, player settings and installation backups
+*.log
+*.log.[0-9]*
+ksa_telemetry.csv*
+ksa_api_dump.txt
+flight_presets.json*
+ui_layout.json*
+backups/
+/artifacts/flight-analysis/
+
+# Local credentials and operating-system metadata
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+Thumbs.db
+.DS_Store

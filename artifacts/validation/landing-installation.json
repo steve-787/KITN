@@ -1,0 +1,91 @@
+{
+  "InstalledAt": "2026-11-13T11:53:34.0554701+01:00",
+  "Destination": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot",
+  "Backup": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot\\backups\\before-orbit-release-and-landing-20261113-115333",
+  "DiagnosticsTestsPassed": 52,
+  "NativeChecksPassed": 30,
+  "HookChecksPassed": 3,
+  "RealGameReturnTested": false,
+  "Installed": [
+    {
+      "Name": "KSAAutopilot.dll",
+      "SHA256": "05744CF0B520AE8435DAE01F12D841F71AE6D8AEB458A3692C8D9DA2EA63D45A"
+    },
+    {
+      "Name": "KSAAutopilot.pdb",
+      "SHA256": "1FA109DF85387E05FBF4B1CED1E6EBFA3256083C77151FFA1A688848CC0A3D0D"
+    },
+    {
+      "Name": "README.md",
+      "SHA256": "07E2992FC679EA0FDF0053FAE462E522F29F3385EA105B4F55A600E9E5EC2D09"
+    }
+  ],
+  "PreviousFiles": [
+    {
+      "Name": "ksa_api_dump.txt",
+      "Length": 34644,
+      "SHA256": "E62CE44BF5FFE59F987FA071E1D9A81FF12B1C18D68A1731E81890731E759225"
+    },
+    {
+      "Name": "ksa_autopilot.log",
+      "Length": 616925,
+      "SHA256": "3120F26081FC21BF94EFBE574A8D16F08D3620562016314AFA1DA7A7B323E474"
+    },
+    {
+      "Name": "ksa_autopilot.log.1",
+      "Length": 10484732,
+      "SHA256": "16A4260233737A81C18D291F65BF17634BE4EB1FBE1AD26CB2F3037490ABCCCD"
+    },
+    {
+      "Name": "ksa_autopilot.log.2",
+      "Length": 3223967,
+      "SHA256": "C67236A641F169AD4F34B6555B13A9A0C111E7F8159A3A5C1670AFA9B2EB2DD4"
+    },
+    {
+      "Name": "ksa_autopilot.log.3",
+      "Length": 10485451,
+      "SHA256": "9343FE8353E750371030A1ECDBF5E22215046525BB6441724A1B9A968C42933D"
+    },
+    {
+      "Name": "ksa_telemetry.csv",
+      "Length": 3790780,
+      "SHA256": "3B872CEDFF9CCB5C05906A22CBF0762B5CB0926B9C1428178666ED4005EE93E2"
+    },
+    {
+      "Name": "ksa_telemetry.csv.1",
+      "Length": 4853631,
+      "SHA256": "3DDDBB4CD02BD07D92C20D6071B51C5ACC580782551DB76087279D67C2F7AD50"
+    },
+    {
+      "Name": "ksa_telemetry.csv.2",
+      "Length": 5708991,
+      "SHA256": "40362A37629C5B3ABD61B9E8B863F8DE592A5C9174FBC703ED015FAB1591BA03"
+    },
+    {
+      "Name": "ksa_telemetry.csv.3",
+      "Length": 2515812,
+      "SHA256": "53FBDDCE63ABEAD14F475852D70ECA09D5B9191B18E813871886D198FEC2E54D"
+    },
+    {
+      "Name": "KSAAutopilot.dll",
+      "Length": 151552,
+      "SHA256": "144C97DEDDCDB8A11C565BA4E635BF9EDB18EA26E1FFCCA8C5D6462AD79C4FF1"
+    },
+    {
+      "Name": "KSAAutopilot.pdb",
+      "Length": 33928,
+      "SHA256": "56D5C47B09D95B3AAB0ABF972BB78EBFD49157245715CC39C887874578EF4363"
+    },
+    {
+      "Name": "mod.toml",
+      "Length": 22,
+      "SHA256": "B1C414AD51DFDDA429A236E2E7A97A113A1CD672FAE215DE2FEC548F3E7F711F"
+    },
+    {
+      "Name": "README.md",
+      "Length": 21472,
+      "SHA256": "61DFCE4DDB8A08172B693C8CB828DC48FA812106F3B225A744650A7CAB499EF7"
+    }
+  ],
+  "ExistingLogsPreserved": true
+}

@@ -1,0 +1,74 @@
+  Wiederherzustellende Projekte werden ermittelt...
+  Alle Projekte sind für die Wiederherstellung auf dem neuesten Stand.
+  UiProbe -> C:\Users\karst\AppData\Local\Temp\KSAAutopilotUiProbe-20261112\bin\Release\net9.0\UiProbe.dll
+
+Der Buildvorgang wurde erfolgreich ausgeführt.
+    0 Warnung(en)
+    0 Fehler
+
+Verstrichene Zeit 00:00:00.92
+[KSAAutopilot] 2026-11-13T13:01:36.8288525+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+[KSAAutopilot] 2026-11-13T13:01:36.8444598+01:00 [INFO] [SESSION] session_id=20261113T120136-7fcc80ac mod_version=0.0.0.0 game_version=2026.11.10.5801 runtime=10.0.14 max_file_bytes=10485760 archives=3 log_dir="C:\Users\karst\AppData\Local\Temp\KSAAutopilotUiProbe-20261112\bin\Release\net9.0"
+[KSAAutopilot] 2026-11-13T13:01:36.8687632+01:00 [INFO] [LOCALIZATION] event=language_selected locale=en-US registered_game_languages=3 native_provider=False source=game
+[KSAAutopilot] 2026-11-13T13:01:36.8723637+01:00 [INFO] [LOCALIZATION] event=language_selected locale=de-DE registered_game_languages=3 native_provider=True source=game
+[KSAAutopilot] 2026-11-13T13:01:36.8740470+01:00 [INFO] [LOCALIZATION] event=language_selected locale=fr-FR registered_game_languages=3 native_provider=True source=game
+[KSAAutopilot] 2026-11-13T13:01:36.8755906+01:00 [INFO] [LOCALIZATION] event=language_selected locale=en-US registered_game_languages=0 native_provider=False source=game
+PASS native game language provider, live German/French selection, external translation and English fallback
+[KSAAutopilot] 2026-11-13T13:01:36.9898620+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1015 sequence=2 branch_part_id=101 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=0.500
+[KSAAutopilot] 2026-11-13T13:01:36.9907593+01:00 [INFO] [BOOSTER] event=separation_confirmed decoupler_id=1015 requested_at_s=0.500 simulation_t_s=0.520 confirmed_drops=1
+PASS native local liquid depletion, full core/neighbour protection, targeted decouple input and acknowledgment
+[KSAAutopilot] 2026-11-13T13:01:36.9922189+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1032 sequence=2 branch_part_id=104 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=1.500
+[KSAAutopilot] 2026-11-13T13:01:36.9925326+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1033 sequence=2 branch_part_id=105 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=1.500
+PASS native two-booster separation without activating the main sequence
+PASS native control and unstarted propulsion protect radial branches
+[KSAAutopilot] 2026-11-13T13:01:36.9951054+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1066 sequence=2 branch_part_id=110 branch_parts=1 fuel_stores=1 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=3.500
+PASS native solid booster exhaustion excludes unburnable residue and unrelated liquid tanks
+[KSAAutopilot] 2026-11-13T13:01:36.9968783+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1087 sequence=2 branch_part_id=113 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=4.500
+PASS native dedicated thruster-powered side tank exhaustion
+PASS native landing fuel excludes unrelated reserves and honors reactant limits and disabled tanks
+PASS five real KSA launch pads, coordinates, terrain resolution and native recovery prerequisites
+[KSAAutopilot] 2026-11-13T13:01:37.0464636+01:00 [INFO] [LANDING] event=state_changed from=Idle to=Planning reason=return_window_search pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T13:01:37.0469427+01:00 [INFO] [LANDING] event=target_selected vehicle="Return test booster" pad="CCSFS LC-39A" latitude_deg=28.60829877 longitude_deg=-80.60412691 pad_altitude_m=0.000 usable_fuel_kg=40000.000 available_delta_v_m_s=2079.442 drag_area_estimate_m2=15.094
+[KSAAutopilot] 2026-11-13T13:01:37.0566018+01:00 [INFO] [LANDING] event=state_changed from=Planning to=Aborted reason=native_test pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=200000.000 distance_m=7576500.116 vertical_speed_m_s=0.000 available_delta_v_m_s=2079.442
+PASS native landing start/abort lifecycle and protection of game maneuver control
+[KSAAutopilot] 2026-11-13T13:01:37.0578086+01:00 [INFO] [LANDING] event=state_changed from=Idle to=Planning reason=return_window_search pad="CCSFS LC-39A" simulation_t_s=10.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T13:01:37.0582842+01:00 [INFO] [LANDING] event=target_selected vehicle="Return test booster" pad="CCSFS LC-39A" latitude_deg=28.60829877 longitude_deg=-80.60412691 pad_altitude_m=0.000 usable_fuel_kg=40000.000 available_delta_v_m_s=2079.442 drag_area_estimate_m2=15.094
+[KSAAutopilot] 2026-11-13T13:01:37.0591252+01:00 [INFO] [LANDING] event=state_changed from=Planning to=Aborted reason=simulation_time_reverted pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+PASS native insufficient fuel/thrust rejection and landing release after time revert
+PASS native sub-second/warp/window time conversions preserve simulation seconds
+PASS native cloned orbit propagation, rotating pad window search and reserved landing fuel
+PASS native return window rejects a budget without enough landing reserve
+[KSAAutopilot] 2026-11-13T13:01:37.5591722+01:00 [INFO] [LANDING] event=state_changed from=Idle to=Planning reason=return_window_search pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T13:01:37.5599529+01:00 [INFO] [LANDING] event=target_selected vehicle="Return test booster" pad="CCSFS LC-39A" latitude_deg=28.60829877 longitude_deg=-80.60412691 pad_altitude_m=0.000 usable_fuel_kg=40000.000 available_delta_v_m_s=2079.442 drag_area_estimate_m2=15.094
+[KSAAutopilot] 2026-11-13T13:01:37.5651730+01:00 [INFO] [LANDING] event=state_changed from=PoweredDescent to=Landed reason=sustained_contact_on_selected_pad pad="CCSFS LC-39A" simulation_t_s=0.900 altitude_agl_m=0.099 distance_m=0.095 vertical_speed_m_s=0.000 available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T13:01:37.5657120+01:00 [INFO] [LANDING] event=touchdown_confirmed pad="CCSFS LC-39A" miss_m=0.095 surface_speed_m_s=0.000 controls_released=true
+PASS native geometry clearance, sustained terrain contact, thrust cutoff and completed landing release
+[KSAAutopilot] 2026-11-13T13:01:37.5673930+01:00 [INFO] [STATE] flight=0 from=Circularizing to=OrbitAchieved reason=apoapsis_and_periapsis_within_target_tolerance player_t_s=0.000 previous_state_duration_s=0.000 altitude_m=0.000 ap_m=0.000 pe_m=0.000 commanded_throttle=0.000
+[KSAAutopilot] 2026-11-13T13:01:37.5677002+01:00 [INFO] [AUTOPILOT] event=orbit_completed controls_released=true mission_clock_continues=true ap_m=200000.000 pe_m=200000.000
+[KSAAutopilot] 2026-11-13T13:01:37.5728296+01:00 [INFO] [CONFIG] debug_logging=false
+PASS native one-time orbit release, preserved later manual controls and independent T+ clock
+PASS native flight graph frame 0: 2834 vertices, 4 draw lists
+PASS native flight graph frame 1: 2858 vertices, 4 draw lists
+PASS native flight graph frame 2: 2858 vertices, 4 draw lists
+PASS native flight graph frame 3: 2858 vertices, 4 draw lists
+PASS native narrow graph with external stacked legend
+PASS native console UI section flight
+PASS native console UI section plan
+PASS native console UI section automation
+PASS native console UI section diagnostics
+PASS native console UI section landing
+[KSAAutopilot] 2026-11-13T13:01:38.0087907+01:00 [INFO] [PRESET] event=saved name="Träger · LEO" updated=false count=1
+[KSAAutopilot] 2026-11-13T13:01:38.0154958+01:00 [INFO] [PRESET] event=saved name="Träger · LEO" updated=true count=1
+[KSAAutopilot] 2026-11-13T13:01:38.0572145+01:00 [INFO] [PRESET] event=selected name="Träger · LEO"
+[KSAAutopilot] 2026-11-13T13:01:38.0625981+01:00 [INFO] [PRESET] event=saved name="Träger · LEO" updated=true count=1
+PASS native same-name preset update
+PASS native preset selection lock during ascent, countdown, landing and pending actions
+[KSAAutopilot] 2026-11-13T13:01:38.0817981+01:00 [INFO] [PRESET] event=saved name="Booster Süd" updated=false count=2
+PASS native Unicode preset name input and Enter submission
+PASS native Save preset button, dropdown selection and persistence in the KSA runtime
+PASS native landing start/abort buttons and ready/active recovery UI with real pads
+PASS separate native T minus/plus window with game fonts
+PASS native countdown and separate timer cancellation buttons
+PASS empty graph, invalid orbit fields, and preservation of shared game context
+[KSAAutopilot] 2026-11-13T13:01:38.2227646+01:00 [INFO] [SESSION] session_id=20261113T120136-7fcc80ac event=mod_unloaded
+PASS native graph context and window cleanup

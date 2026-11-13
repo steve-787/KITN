@@ -1,0 +1,53 @@
+{
+  "InstalledAt": "2026-11-13T15:41:50.5118947+01:00",
+  "ModDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot",
+  "BackupDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot\\backups\\before-rocket-adaptation-20261113-154150",
+  "Files": [
+    {
+      "Name": "KSAAutopilot.dll",
+      "BeforeSHA256": "14B83498D1C8589D13C7681BE9D8F9155FD8FDBA063694C482211763CD463BFD",
+      "InstalledSHA256": "582D49B0A5EEE6297709D5917ACE4CD41F6E6248034B6709ECE1C888BDFED28C",
+      "Verified": true
+    },
+    {
+      "Name": "KSAAutopilot.pdb",
+      "BeforeSHA256": "DE1A38969ABAED28194465E6CF8FFD4EE7C9D12B757BF15DAD34623C3ECE511C",
+      "InstalledSHA256": "C7AC98DCACC035BCFAF34FA68640491EC5F1FBFD53571ACEFAF0BA677EFEF3A3",
+      "Verified": true
+    },
+    {
+      "Name": "README.md",
+      "BeforeSHA256": "D5C2684F8729E0F23E7BAAC03CCEA00FCA2F2DE7F71779ACDEEB7C74654BECEA",
+      "InstalledSHA256": "D737D5DB6C002DEDAA9DFC66ADEC845FC20B956B892B1B77F15CE5E3E028BC88",
+      "Verified": true
+    }
+  ],
+  "PreservedFiles": [
+    "ksa_api_dump.txt",
+    "ksa_autopilot.log",
+    "ksa_autopilot.log.1",
+    "ksa_autopilot.log.2",
+    "ksa_autopilot.log.3",
+    "ksa_telemetry.csv",
+    "ksa_telemetry.csv.1",
+    "ksa_telemetry.csv.2",
+    "ksa_telemetry.csv.3",
+    "mod.toml"
+  ],
+  "PreservedConfiguration": [
+    {
+      "Name": "mod.toml",
+      "BeforeSHA256": "B1C414AD51DFDDA429A236E2E7A97A113A1CD672FAE215DE2FEC548F3E7F711F",
+      "AfterSHA256": "B1C414AD51DFDDA429A236E2E7A97A113A1CD672FAE215DE2FEC548F3E7F711F",
+      "Unchanged": true
+    }
+  ],
+  "LatestLogSnapshotDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot\\backups\\before-rocket-adaptation-20261113-154150\\logs-after-install",
+  "UnitTestsPassed": 64,
+  "NativeUIChecksPassed": 41,
+  "NativeHookChecksPassed": 4,
+  "VerifiedNativeDllSHA256": "582D49B0A5EEE6297709D5917ACE4CD41F6E6248034B6709ECE1C888BDFED28C",
+  "BuildWarnings": 0,
+  "BuildErrors": 0,
+  "GameRestartedByInstaller": false
+}

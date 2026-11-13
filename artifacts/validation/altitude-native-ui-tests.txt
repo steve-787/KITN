@@ -1,0 +1,96 @@
+[KSAAutopilot] 2026-11-13T19:26:19.6011508+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+[KSAAutopilot] 2026-11-13T19:26:19.6160705+01:00 [INFO] [SESSION] session_id=20261113T182619-8ed46640 mod_version=0.0.0.0 game_version=2026.11.10.5801 runtime=10.0.14 max_file_bytes=10485760 archives=3 log_dir="C:\Users\karst\AppData\Local\Temp\KSAAutopilotUiProbe-20261112\bin\Release\net9.0"
+[KSAAutopilot] 2026-11-13T19:26:19.6368185+01:00 [INFO] [LOCALIZATION] event=language_selected locale=en-US registered_game_languages=3 native_provider=False source=game
+[KSAAutopilot] 2026-11-13T19:26:19.6391367+01:00 [INFO] [LOCALIZATION] event=language_selected locale=de-DE registered_game_languages=3 native_provider=True source=game
+[KSAAutopilot] 2026-11-13T19:26:19.6402615+01:00 [INFO] [LOCALIZATION] event=language_selected locale=fr-FR registered_game_languages=3 native_provider=True source=game
+[KSAAutopilot] 2026-11-13T19:26:19.6414337+01:00 [INFO] [LOCALIZATION] event=language_selected locale=en-US registered_game_languages=0 native_provider=False source=game
+PASS native game language provider, live German/French selection, external translation and English fallback
+PASS native rocket snapshots preserve live fuel, staging and performance cache; phases=2
+PASS native ambient thrust and normalization of the editor pressure reference
+[KSAAutopilot] 2026-11-13T19:26:19.7840239+01:00 [INFO] [FLIGHT_PLAN] event=planning vehicle="Native planning rocket" mass_kg=60000.000 phases=2 atmosphere_thrust_ratio=0.883 attitude_acceleration_deg_s2=5.730 has_computer=True has_steering=True
+[KSAAutopilot] 2026-11-13T19:26:19.7844124+01:00 [INFO] [FLIGHT_PLAN_PHASE] phase=0 starts_stage=True thrust_n=3893955.750 mass_flow_kg_s=1365.829 start_mass_kg=60000.000 burn_seconds=10.982
+[KSAAutopilot] 2026-11-13T19:26:19.7846796+01:00 [INFO] [FLIGHT_PLAN_PHASE] phase=1 starts_stage=True thrust_n=1297985.250 mass_flow_kg_s=455.276 start_mass_kg=43000.000 burn_seconds=76.876
+[KSAAutopilot] 2026-11-13T19:26:19.7893955+01:00 [WARN] [FLIGHT_PLAN] event=failed reason=planning.low_fuel detail="Flight planning error: fuel provides 5,615 m/s, below the minimum 7,381 m/s before flight losses. Add propellant or reduce mass."
+[KSAAutopilot] 2026-11-13T19:26:19.7899413+01:00 [INFO] [FLIGHT_PLAN] event=planning vehicle="Native planning rocket" mass_kg=60000.000 phases=2 atmosphere_thrust_ratio=0.883 attitude_acceleration_deg_s2=5.730 has_computer=True has_steering=True
+[KSAAutopilot] 2026-11-13T19:26:19.7903282+01:00 [INFO] [FLIGHT_PLAN_PHASE] phase=0 starts_stage=True thrust_n=4218452.000 mass_flow_kg_s=1479.649 start_mass_kg=60000.000 burn_seconds=10.982
+[KSAAutopilot] 2026-11-13T19:26:19.7906824+01:00 [INFO] [FLIGHT_PLAN_PHASE] phase=1 starts_stage=True thrust_n=1622481.625 mass_flow_kg_s=569.096 start_mass_kg=41750.000 burn_seconds=59.305
+[KSAAutopilot] 2026-11-13T19:26:19.7910760+01:00 [WARN] [FLIGHT_PLAN] event=failed reason=planning.low_fuel detail="Flight planning error: fuel provides 5,611 m/s, below the minimum 7,381 m/s before flight losses. Add propellant or reduce mass."
+PASS native flight planning detects changed engines with identical rocket mass, part count and clean game cache
+[KSAAutopilot] 2026-11-13T19:26:19.8049362+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1035 sequence=2 branch_part_id=104 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=0.500
+[KSAAutopilot] 2026-11-13T19:26:19.8057329+01:00 [INFO] [BOOSTER] event=separation_confirmed decoupler_id=1035 requested_at_s=0.500 simulation_t_s=0.520 confirmed_drops=1
+PASS native local liquid depletion, full core/neighbour protection, targeted decouple input and acknowledgment
+[KSAAutopilot] 2026-11-13T19:26:19.8071126+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1052 sequence=2 branch_part_id=107 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=1.500
+[KSAAutopilot] 2026-11-13T19:26:19.8074498+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1053 sequence=2 branch_part_id=108 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=1.500
+PASS native two-booster separation without activating the main sequence
+PASS native control and unstarted propulsion protect radial branches
+[KSAAutopilot] 2026-11-13T19:26:19.8091536+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1086 sequence=2 branch_part_id=113 branch_parts=1 fuel_stores=1 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=3.500
+PASS native solid booster exhaustion excludes unburnable residue and unrelated liquid tanks
+[KSAAutopilot] 2026-11-13T19:26:19.8108740+01:00 [INFO] [BOOSTER] event=separation_requested reason=booster_local_propellant_depleted decoupler_id=1107 sequence=2 branch_part_id=116 branch_parts=1 fuel_stores=2 usable_fill_fraction=0.00000000 fuel_valid=True ignited_propulsion=1 future_propulsion=0 contains_control=False confirmed_s=0.500 simulation_t_s=4.500
+PASS native dedicated thruster-powered side tank exhaustion
+PASS native landing fuel excludes unrelated reserves and honors reactant limits and disabled tanks
+PASS five real KSA launch pads, coordinates, terrain resolution and native recovery prerequisites
+[KSAAutopilot] 2026-11-13T19:26:19.8340720+01:00 [INFO] [LANDING] event=state_changed from=Idle to=Planning reason=return_window_search pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T19:26:19.8344796+01:00 [INFO] [LANDING] event=target_selected vehicle="Return test booster" pad="CCSFS LC-39A" latitude_deg=28.60829877 longitude_deg=-80.60412691 pad_altitude_m=0.000 usable_fuel_kg=40000.000 available_delta_v_m_s=2079.442 drag_area_estimate_m2=15.094
+[KSAAutopilot] 2026-11-13T19:26:19.8429939+01:00 [INFO] [LANDING] event=state_changed from=Planning to=Aborted reason=native_test pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=200000.000 distance_m=7576500.116 vertical_speed_m_s=0.000 available_delta_v_m_s=2079.442
+PASS native landing start/abort lifecycle and protection of game maneuver control
+[KSAAutopilot] 2026-11-13T19:26:19.8437066+01:00 [INFO] [LANDING] event=state_changed from=Idle to=Planning reason=return_window_search pad="CCSFS LC-39A" simulation_t_s=10.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T19:26:19.8439979+01:00 [INFO] [LANDING] event=target_selected vehicle="Return test booster" pad="CCSFS LC-39A" latitude_deg=28.60829877 longitude_deg=-80.60412691 pad_altitude_m=0.000 usable_fuel_kg=40000.000 available_delta_v_m_s=2079.442 drag_area_estimate_m2=15.094
+[KSAAutopilot] 2026-11-13T19:26:19.8447803+01:00 [INFO] [LANDING] event=state_changed from=Planning to=Aborted reason=simulation_time_reverted pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+PASS native insufficient fuel/thrust rejection and landing release after time revert
+PASS native sub-second/warp/window time conversions preserve simulation seconds
+PASS native cloned orbit propagation, rotating pad window search and reserved landing fuel
+PASS native return window rejects a budget without enough landing reserve
+[KSAAutopilot] 2026-11-13T19:26:20.3417306+01:00 [INFO] [LANDING] event=state_changed from=Idle to=Planning reason=return_window_search pad="CCSFS LC-39A" simulation_t_s=0.000 altitude_agl_m=NaN distance_m=NaN vertical_speed_m_s=NaN available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T19:26:20.3424633+01:00 [INFO] [LANDING] event=target_selected vehicle="Return test booster" pad="CCSFS LC-39A" latitude_deg=28.60829877 longitude_deg=-80.60412691 pad_altitude_m=0.000 usable_fuel_kg=40000.000 available_delta_v_m_s=2079.442 drag_area_estimate_m2=15.094
+[KSAAutopilot] 2026-11-13T19:26:20.3451422+01:00 [INFO] [LANDING] event=state_changed from=PoweredDescent to=Landed reason=sustained_contact_on_selected_pad pad="CCSFS LC-39A" simulation_t_s=0.900 altitude_agl_m=0.099 distance_m=0.095 vertical_speed_m_s=0.000 available_delta_v_m_s=2079.442
+[KSAAutopilot] 2026-11-13T19:26:20.3454306+01:00 [INFO] [LANDING] event=touchdown_confirmed pad="CCSFS LC-39A" miss_m=0.095 surface_speed_m_s=0.000 controls_released=true
+PASS native geometry clearance, sustained terrain contact, thrust cutoff and completed landing release
+[KSAAutopilot] 2026-11-13T19:26:20.3473991+01:00 [INFO] [STATE] flight=0 from=Circularizing to=OrbitAchieved reason=apoapsis_and_periapsis_within_target_tolerance player_t_s=0.000 previous_state_duration_s=0.000 altitude_m=0.000 ap_m=0.000 pe_m=0.000 commanded_throttle=0.000
+[KSAAutopilot] 2026-11-13T19:26:20.3477850+01:00 [INFO] [AUTOPILOT] event=orbit_completed controls_released=true mission_clock_continues=true ap_m=200000.000 pe_m=200000.000
+[KSAAutopilot] 2026-11-13T19:26:20.3523413+01:00 [INFO] [CONFIG] debug_logging=false
+PASS native one-time orbit release, preserved later manual controls and independent T+ clock
+PASS native flight graph frame 0: 2834 vertices, 4 draw lists
+PASS native flight graph frame 1: 2858 vertices, 4 draw lists
+PASS native flight graph frame 2: 2858 vertices, 4 draw lists
+PASS native flight graph frame 3: 2858 vertices, 4 draw lists
+PASS native narrow graph with external stacked legend
+PASS native console UI section flight
+PASS native console UI section plan
+PASS native console UI section automation
+PASS native console UI section diagnostics
+PASS native console UI section landing
+[KSAAutopilot] 2026-11-13T19:26:20.7967627+01:00 [INFO] [PRESET] event=saved name="Träger · LEO" updated=false count=1
+[KSAAutopilot] 2026-11-13T19:26:20.8023564+01:00 [INFO] [PRESET] event=saved name="Träger · LEO" updated=true count=1
+[KSAAutopilot] 2026-11-13T19:26:20.8522278+01:00 [INFO] [PRESET] event=selected name="Träger · LEO"
+[KSAAutopilot] 2026-11-13T19:26:20.8572096+01:00 [INFO] [PRESET] event=saved name="Träger · LEO" updated=true count=1
+PASS native same-name preset update
+PASS native preset selection lock during ascent, countdown, landing and pending actions
+[KSAAutopilot] 2026-11-13T19:26:20.8725143+01:00 [INFO] [PRESET] event=saved name="Booster Süd" updated=false count=2
+PASS native Unicode preset name input and Enter submission
+PASS native Save preset button, dropdown selection and persistence in the KSA runtime
+PASS native landing start/abort buttons and ready/active recovery UI with real pads
+PASS separate native T minus/plus window with game fonts
+PASS native countdown blocks pending, stale and infeasible plans and displays the actionable error
+PASS native countdown and separate timer cancellation buttons
+PASS empty graph, invalid orbit fields, and preservation of shared game context
+PASS native mouse dragging/resizing of both windows, independent capture and automatic layout save
+PASS native restart restoration of both window positions and sizes with ImGui ini saving disabled
+PASS native layout restoration within a smaller game viewport
+[KSAAutopilot] 2026-11-13T19:26:21.1071521+01:00 [INFO] [ALTITUDE_DISPLAY] event=registered renderer=original_KSA_canvas visibility=temporary_UI_prefix
+PASS native altitude visibility is registered as a temporary instance prefix
+[KSAAutopilot] 2026-11-13T19:26:21.1107390+01:00 [INFO] [ALTITUDE_DISPLAY] event=hosted canvas=Altitude original_hud_hidden=true layout_changed=false
+PASS mission clock uses the exact KSA altitude canvas and renderer callback with original colors and aspect ratio
+PASS native altitude placement respects small and enlarged mission clock windows
+PASS countdown cancellation remains accessible below the native altitude strip
+[KSAAutopilot] 2026-11-13T19:26:21.1161451+01:00 [INFO] [ALTITUDE_DISPLAY] event=released original_hud_restored=true layout_changed=false
+PASS closing the T window restores the original HUD while the T+ clock keeps running
+[KSAAutopilot] 2026-11-13T19:26:21.1166877+01:00 [INFO] [ALTITUDE_DISPLAY] event=hosted canvas=Altitude original_hud_hidden=true layout_changed=false
+[KSAAutopilot] 2026-11-13T19:26:21.1170482+01:00 [INFO] [ALTITUDE_DISPLAY] event=released original_hud_restored=true layout_changed=false
+[KSAAutopilot] 2026-11-13T19:26:21.1177212+01:00 [INFO] [ALTITUDE_DISPLAY] event=hosted canvas=Altitude original_hud_hidden=true layout_changed=false
+[KSAAutopilot] 2026-11-13T19:26:21.1180630+01:00 [INFO] [ALTITUDE_DISPLAY] event=released original_hud_restored=true layout_changed=false
+PASS missing renderer and missing vehicle return visibility to the game HUD
+[KSAAutopilot] 2026-11-13T19:26:21.1187938+01:00 [INFO] [ALTITUDE_DISPLAY] event=hosted canvas=Altitude original_hud_hidden=true layout_changed=false
+[KSAAutopilot] 2026-11-13T19:26:21.1193830+01:00 [INFO] [ALTITUDE_DISPLAY] event=released original_hud_restored=true layout_changed=false
+PASS disposing altitude hosting removes the visibility hook and preserves the original instrument
+[KSAAutopilot] 2026-11-13T19:26:21.1205038+01:00 [INFO] [SESSION] session_id=20261113T182619-8ed46640 event=mod_unloaded
+PASS native graph context and window cleanup

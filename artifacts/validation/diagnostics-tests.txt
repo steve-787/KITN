@@ -1,0 +1,65 @@
+PASS CSV round-trip under German and English cultures
+PASS Previous sessions stay readable and UTF-8 has no BOM
+PASS Rotation keeps three archives and a CSV header in every file
+PASS Open tail readers can observe entries while files rotate
+PASS Oversized diagnostic entries stay intact
+PASS File errors are reported to the logger for recovery
+PASS Duplicate telemetry columns are rejected
+PASS Gravity turn waits for altitude, speed and upright ascent
+PASS Default LEO pitch profile builds horizontal flight continuously
+PASS Pitch target uses simulation time and waits for real alignment
+PASS Atmospheric turn limits the angle to the flight path
+PASS Orbit calculations match known circular and escape states
+PASS Finite burn timing does not use altitude as an ignition trigger
+PASS Orbit completion requires both target apsides
+PASS Apoapsis prediction cuts radial thrust before overshoot
+  498 recorded ascent/coast orbit states reproduced
+PASS Recorded failed flight is diagnosed by orbit calculations
+  insertion start=5500 m/s: Ap=200,05, Pe=198,00 km, max Ap=200,05 km
+  insertion start=7000 m/s: Ap=200,07, Pe=198,00 km, max Ap=200,07 km
+  insertion start=7600 m/s: Ap=200,07, Pe=198,00 km, max Ap=200,07 km
+PASS Finite insertion burn converges to a 200 km LEO
+  no-RCS mission: cutoff T+159.6s, pitch=0.0°, horizontal=4320 m/s; insertion T+305.3s; Ap=200.44/Pe=199.71 km; max Ap=200.87 km; coast impulse=0.0 m/s
+PASS Recorded rocket estimates support the complete LEO ascent without RCS
+  no-RCS logged coast: cutoff T+0.0s, pitch=-0.0°, horizontal=5390 m/s; insertion T+178.6s; Ap=201.09/Pe=199.68 km; max Ap=201.09 km; coast impulse=0.0 m/s
+PASS Logged cutoff reaches the target periapsis without RCS or powered coast
+PASS Minimum-throttle pulses preserve the requested average and cutoff
+PASS Logged insertion cancels descent instead of lowering an unsafe orbit
+PASS Insertion continues after AP has moved to the next orbit
+PASS TVC thrust stays available until angular motion settles without RCS
+PASS Minimum ignition time preserves average thrust
+PASS Retrograde trims lower excess apoapsis to both target apsides
+PASS A constant excess AP does not block the preliminary retrograde trim
+PASS Graph measures surface distance independently of height and origin
+PASS Graph uses simulation time, preserves stopped traces and resets reverted flights
+PASS Bounded flight history retains the launch and full distance
+PASS Invalid measurements cannot poison the live graph
+  preview: AP 200,17 / PE 198,81 km; 1199 km distance; 367 points
+PASS Route preview responds to orbit targets and turn settings
+PASS Route preview respects finite fuel and manual staging
+PASS Countdown reaches zero once and mission time starts at actual launch
+PASS Mission clock formats T minus and plus with full hours, minutes and seconds
+PASS Cancelled and reset countdowns cannot launch a rocket
+PASS Mission clock follows simulation pauses, warp and time reverts
+PASS Mission elapsed time survives completed guidance and switching to a booster
+PASS Return transfers reach their rotating target in prograde and retrograde planes
+  atmospheric return: handover T+1584,6s, miss 572,1 m, reserve 1344 m/s
+PASS Atmospheric return targeting corrects the predicted landing footprint
+  powered landing: T+59,5s, miss 7,83 m, surface speed 0,50 m/s, vertical -0,44 m/s
+PASS Powered descent brakes vertical motion and converges on a rotating landing pad
+  return (standard booster): deorbit 74 m/s, powered 76,8s, miss 8,6 m, touchdown 0,48 m/s, landing delta-v 1224/1410 m/s, fuel left 11906 kg
+  return (high thrust / minimum throttle): deorbit 74 m/s, powered 70,8s, miss 8,4 m, touchdown 0,50 m/s, landing delta-v 1175/1362 m/s, fuel left 12762 kg
+  return (lower thrust): deorbit 74 m/s, powered 90,2s, miss 8,3 m, touchdown 0,49 m/s, landing delta-v 1256/1486 m/s, fuel left 11350 kg
+  return (retrograde orbit): deorbit 267 m/s, powered 73,5s, miss 10,1 m, touchdown 0,48 m/s, landing delta-v 1169/1378 m/s, fuel left 9570 kg
+PASS Atmospheric return and finite-fuel landing tolerate engine minimums and attitude delay
+PASS Landing confirmation requires real sustained contact inside the selected pad
+PASS Landing logs retain a stable schema and distinguish control from mission time
+PASS Empty side boosters confirm depletion independently of the main rocket
+PASS Unequal side boosters separate independently and preserve full neighbours
+PASS Fuel transfer, transient exhaustion and reset cancel booster confirmation
+PASS Payloads, future engines and unavailable fuel data cannot trigger booster separation
+PASS Booster confirmation follows simulation pause and reverts
+PASS UI text and numbers follow the game locale independently of Windows
+PASS English and German catalogs preserve every formatted parameter
+PASS Cached status, preview and apsis names follow live language changes
+PASS Game translations override fallbacks while widget IDs remain stable

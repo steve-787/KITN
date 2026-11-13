@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    .views { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .views button { font: inherit; padding: 7px 12px; cursor: pointer; color: var(--foreground); background: var(--secondary); border: 1px solid var(--border); border-radius: var(--radius); }
+    .views button[aria-selected="true"] { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+    .views button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    figure { margin: 0; }
+    figure img { display: block; width: 100%; height: auto; border-radius: var(--radius); }
+    figure img[hidden] { display: none; }
+    figcaption { color: var(--muted-foreground); font-size: 12px; line-height: 1.5; margin-top: 8px; }
+    .clocks { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+    .clocks figure { flex: 1 1 260px; }
+  </style>
+</head>
+<body>
+  <nav class="views" role="tablist" aria-label="Neue Autopilot-Oberfläche">
+    <button type="button" role="tab" aria-selected="true" data-view="flight">Flug</button>
+    <button type="button" role="tab" aria-selected="false" data-view="plan">Flugplan</button>
+    <button type="button" role="tab" aria-selected="false" data-view="automation">Automatik</button>
+    <button type="button" role="tab" aria-selected="false" data-view="diagnostics">Diagnose</button>
+  </nav>
+  <figure>
+    <img data-image="flight" src="C:/Users/karst/Desktop/KSAAutopilot/artifacts/ui/flight-window.png" alt="Neue native Mod-Oberfläche mit großen Flugwerten und roter geplanter sowie weißer gemessener Flugbahn">
+    <img data-image="plan" hidden src="C:/Users/karst/Desktop/KSAAutopilot/artifacts/ui/plan.png" alt="Flugplan mit Zielorbit und Gravity-Turn-Einstellungen">
+    <img data-image="automation" hidden src="C:/Users/karst/Desktop/KSAAutopilot/artifacts/ui/automation.png" alt="Automatik für Raketenstufen und Zeitraffer">
+    <img data-image="diagnostics" hidden src="C:/Users/karst/Desktop/KSAAutopilot/artifacts/ui/diagnostics.png" alt="Physikwerte und Log-Einstellungen für die Fehlersuche">
+    <figcaption>Originale KSA-Fenster, Spielschriften und Bedienelemente. Ansicht mit Testdaten.</figcaption>
+  </figure>
+  <div class="clocks">
+    <figure>
+      <img src="C:/Users/karst/Desktop/KSAAutopilot/artifacts/ui/mission-time-minus.png" alt="Separate Missionsuhr zählt vor dem Start als T-00:00:06 herunter">
+      <figcaption>Vor dem Start: Countdown.</figcaption>
+    </figure>
+    <figure>
+      <img src="C:/Users/karst/Desktop/KSAAutopilot/artifacts/ui/mission-time-plus.png" alt="Separate Missionsuhr zählt nach dem Start als T+00:03:57 weiter">
+      <figcaption>Ab Start: verstrichene Flugzeit.</figcaption>
+    </figure>
+  </div>
+  <script>
+    document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-view]').forEach(item => item.setAttribute('aria-selected', String(item === button)));
+      document.querySelectorAll('[data-image]').forEach(item => item.hidden = item.dataset.image !== button.dataset.view);
+    }));
+  </script>
+</body>
+</html>

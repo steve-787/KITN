@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AssemblyName>KSAAutopilot</AssemblyName>
+    <RootNamespace>KSAAutopilot</RootNamespace>
+    <NoWarn>MSB3277;CS1705;CA1416</NoWarn>
+
+    <!-- Path to Kitten Space Agency installation -->
+    <KSAPath>K:\Games\Kitten Space Agency</KSAPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core .NET 10 references from KSA directory -->
+    <Reference Include="System.Private.CoreLib">
+      <HintPath>$(KSAPath)\System.Private.CoreLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Runtime">
+      <HintPath>$(KSAPath)\System.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Collections">
+      <HintPath>$(KSAPath)\System.Collections.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Console">
+      <HintPath>$(KSAPath)\System.Console.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>$(KSAPath)\System.Numerics.Vectors.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- StarMap Mod Loader API -->
+    <Reference Include="StarMap.API">
+      <HintPath>C:\Users\karst\.nuget\packages\starmap.api\0.5.4\lib\net10.0\StarMap.API.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Kitten Space Agency assemblies -->
+    <Reference Include="KSA">
+      <HintPath>$(KSAPath)\KSA.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui">
+      <HintPath>$(KSAPath)\Brutal.ImGui.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImPlot">
+      <HintPath>$(KSAPath)\Brutal.ImPlot.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.ImGui.Abstractions">
+      <HintPath>$(KSAPath)\Brutal.ImGui.Abstractions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Core">
+      <HintPath>$(KSAPath)\Brutal.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Localization">
+      <HintPath>$(KSAPath)\Brutal.Localization.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Planet.Render.Core">
+      <HintPath>$(KSAPath)\Planet.Render.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Text.RegularExpressions">
+      <HintPath>$(KSAPath)\System.Text.RegularExpressions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Text.Json">
+      <HintPath>$(KSAPath)\System.Text.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Numerics">
+      <HintPath>$(KSAPath)\Brutal.Numerics.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Maths">
+      <HintPath>$(KSAPath)\Brutal.Maths.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Brutal.Strings">
+      <HintPath>$(KSAPath)\Brutal.Strings.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,45 @@
+{
+  "InstalledAt": "2026-11-13T14:39:45.6536453+01:00",
+  "ModDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot",
+  "BackupDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot\\backups\\before-ui-layout-20261113-143728",
+  "Files": [
+    {
+      "Name": "KSAAutopilot.dll",
+      "BeforeSHA256": "887040FD09959692BB61817D9BDB65E6D7CE0837B059AEB803D685137BB54280",
+      "InstalledSHA256": "14B83498D1C8589D13C7681BE9D8F9155FD8FDBA063694C482211763CD463BFD",
+      "Verified": true
+    },
+    {
+      "Name": "KSAAutopilot.pdb",
+      "BeforeSHA256": "CB2031B1CEDCEC9FAE8C9E2094B2FAC0C5B813D1336BD513C17A2A862C897BCD",
+      "InstalledSHA256": "DE1A38969ABAED28194465E6CF8FFD4EE7C9D12B757BF15DAD34623C3ECE511C",
+      "Verified": true
+    },
+    {
+      "Name": "README.md",
+      "BeforeSHA256": "865BB020750FDDBCC6C8D32E278CF2ECBFA22994991F4F0AECC8C2CB28A9289F",
+      "InstalledSHA256": "D5C2684F8729E0F23E7BAAC03CCEA00FCA2F2DE7F71779ACDEEB7C74654BECEA",
+      "Verified": true
+    }
+  ],
+  "PreservedFiles": [
+    "ksa_api_dump.txt",
+    "ksa_autopilot.log",
+    "ksa_autopilot.log.1",
+    "ksa_autopilot.log.2",
+    "ksa_autopilot.log.3",
+    "ksa_telemetry.csv",
+    "ksa_telemetry.csv.1",
+    "ksa_telemetry.csv.2",
+    "ksa_telemetry.csv.3",
+    "mod.toml"
+  ],
+  "LiveLogsContinuedDuringInstallation": true,
+  "LatestLogSnapshotDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot\\backups\\before-ui-layout-20261113-143728\\logs-after-install",
+  "LayoutFile": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KSAAutopilot\\ui_layout.json",
+  "UnitTestsPassed": 59,
+  "NativeUIChecksPassed": 37,
+  "NativeHookChecksPassed": 4,
+  "BuildWarnings": 0,
+  "BuildErrors": 0
+}

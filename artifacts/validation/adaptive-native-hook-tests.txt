@@ -1,0 +1,27 @@
+[KSAAutopilot] 2026-11-13T15:39:30.6327533+01:00 [INFO] [SESSION] session_id=20261113T143930-23fc32e9 mod_version=0.0.0.0 game_version=2026.11.10.5801 runtime=10.0.14 max_file_bytes=10485760 archives=3 log_dir="C:\Users\karst\AppData\Local\Temp\KSAAutopilotAdaptiveSmoke-20261113-153930"
+[KSAAutopilot] 2026-11-13T15:39:30.6527020+01:00 [INFO] [API] API dump written to ksa_api_dump.txt
+[KSAAutopilot] 2026-11-13T15:39:30.6545925+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+PASS flight recorder JIT compilation against the installed KSA libraries
+[KSAAutopilot] 2026-11-13T15:39:30.7236886+01:00 [INFO] [SESSION] session_id=20261113T143930-2f03188b mod_version=0.0.0.0 game_version=2026.11.10.5801 runtime=10.0.14 max_file_bytes=10485760 archives=3 log_dir="C:\Users\karst\AppData\Local\Temp\KSAAutopilotAdaptiveSmoke-20261113-153930"
+[KSAAutopilot] 2026-11-13T15:39:30.7329368+01:00 [INFO] [LOCALIZATION] event=language_selected locale=en-US registered_game_languages=0 native_provider=False source=game
+[KSAAutopilot] 2026-11-13T15:39:30.7344821+01:00 [INFO] [API] API dump written to ksa_api_dump.txt
+[KSAAutopilot] 2026-11-13T15:39:30.7348684+01:00 [INFO] [UI_LAYOUT] event=loaded windows=0
+[KSAAutopilot] 2026-11-13T15:39:30.7352971+01:00 [INFO] [PRESET] event=loaded count=0
+[KSAAutopilot] 2026-11-13T15:39:30.7361644+01:00 [INFO] [CONTROL_HOOK] registered=true phase=after_auto_warp_before_job_sim_step main_thread=true
+[KSAAutopilot] 2026-11-13T15:39:30.7364948+01:00 [INFO] [LIFECYCLE] Mod successfully loaded via StarMap; telemetry defaults to one sample per 0.5 seconds.
+[KSAAutopilot] 2026-11-13T15:39:30.7369772+01:00 [INFO] [CONTROL_HOOK] event=first_guidance_callback execution=before_physics_snapshot
+[KSAAutopilot] 2026-11-13T15:39:30.7411692+01:00 [INFO] [VEHICLE] previous="none" current="none" state=Idle
+[KSAAutopilot] 2026-11-13T15:39:30.7728507+01:00 [INFO] [UI_LAYOUT] event=saved windows=1
+[KSAAutopilot] 2026-11-13T15:39:30.7744680+01:00 [INFO] [SESSION] session_id=20261113T143930-2f03188b event=mod_unloaded
+PASS pending window layout is saved immediately on mod unload and reloads in the native runtime
+[KSAAutopilot] 2026-11-13T15:39:30.7811666+01:00 [INFO] [SESSION] session_id=20261113T143930-5468a0bc mod_version=0.0.0.0 game_version=2026.11.10.5801 runtime=10.0.14 max_file_bytes=10485760 archives=3 log_dir="C:\Users\karst\AppData\Local\Temp\KSAAutopilotAdaptiveSmoke-20261113-153930"
+[KSAAutopilot] 2026-11-13T15:39:30.7826868+01:00 [INFO] [API] API dump written to ksa_api_dump.txt
+PASS StarMap constructor injection, synchronized hook registration/callback, and hook disposal
+[KSAAutopilot] 2026-11-13T15:39:30.7830855+01:00 [INFO] [STATE] flight=1 from=Idle to=VerticalClimb reason=user_start player_t_s=0.000 previous_state_duration_s=0.000 altitude_m=0.000 ap_m=0.000 pe_m=0.000 commanded_throttle=0.000
+[KSAAutopilot] 2026-11-13T15:39:30.7855967+01:00 [ERROR] [SMOKE_TEST] isolated exception formatting check
+    System.InvalidOperationException: simulated failure
+     ---> System.IO.IOException: simulated inner failure
+       --- End of inner exception stack trace ---
+[KSAAutopilot] 2026-11-13T15:39:30.7859150+01:00 [INFO] [SESSION] session_id=20261113T143930-5468a0bc event=mod_unloaded
+PASS isolated diagnostics smoke test with the installed KSA runtime libraries
+OUTPUT C:\Users\karst\AppData\Local\Temp\KSAAutopilotAdaptiveSmoke-20261113-153930
