@@ -1,0 +1,199 @@
+name: Release KITN
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (current publishes the version already in version.txt)
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - current
+      dry_run:
+        description: Build and verify without publishing
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kitn-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Check out the selected commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Prepare the release version and commit
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          REFERENCES_REPOSITORY: ${{ vars.KSA_REFERENCES_REPOSITORY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          if ($env:GITHUB_REF -ne "refs/heads/$env:DEFAULT_BRANCH") {
+            throw "Run releases from the default branch ($env:DEFAULT_BRANCH)."
+          }
+          if (-not $env:REFERENCES_REPOSITORY) {
+            throw 'Configure the build references using tools/prepare-ksa-references.ps1 and tools/publish-ksa-references.ps1 first.'
+          }
+          $references = Get-Content build/ksa-references.json -Raw | ConvertFrom-Json
+          $base = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read the source commit.' }
+          $remote = git ls-remote origin "refs/heads/$env:DEFAULT_BRANCH"
+          if ($LASTEXITCODE -ne 0 -or ($remote -split '\s+')[0] -ne $base) {
+            throw 'The default branch changed. Start a new workflow run to release its current commit.'
+          }
+          $version = ./tools/bump-version.ps1 -Bump $env:BUMP
+          $tag = "v$version"
+          git show-ref --verify --quiet "refs/tags/$tag"
+          $tagExists = $LASTEXITCODE -eq 0
+          $draftExists = $false
+          if ($tagExists) {
+            $tagCommit = git rev-list -n 1 $tag
+            if ($LASTEXITCODE -ne 0 -or $env:BUMP -ne 'current' -or $tagCommit -ne $base) {
+              throw "$tag already exists. Select another version bump."
+            }
+            $draft = gh release view $tag --json isDraft --jq .isDraft 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              if ($draft -ne 'true') { throw "$tag is already published. Select a version bump." }
+              $draftExists = $true
+            }
+          }
+          if ($env:BUMP -ne 'current') {
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -- version.txt
+            git commit -m "Release $tag"
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot commit the new version.' }
+          }
+          $commit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read the release commit.' }
+          @("version=$version", "tag=$tag", "commit=$commit", "base=$base",
+            "tag_exists=$($tagExists.ToString().ToLowerInvariant())",
+            "draft_exists=$($draftExists.ToString().ToLowerInvariant())", "references_ref=$($references.ref)") | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Test diagnostics and release versioning
+        run: |
+          dotnet run --project tests/KITN.Diagnostics.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostics tests failed.' }
+          ./tests/ReleaseTests.ps1
+
+      - name: Fetch private compile-only KSA references
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.KSA_REFERENCES_REPOSITORY }}
+          ref: ${{ steps.version.outputs.references_ref }}
+          ssh-key: ${{ secrets.KSA_REFERENCES_SSH_KEY }}
+          persist-credentials: false
+          path: .local/ksa-build-refs
+
+      - name: Verify and restore the KSA references
+        run: ./tools/restore-ksa-references.ps1 -ArchivePath .local/ksa-build-refs/ksa-references.zip -Destination "$env:RUNNER_TEMP/ksa-refs"
+
+      - name: Build and verify the mod package
+        run: ./tools/package-release.ps1 -KSAPath "$env:RUNNER_TEMP/ksa-refs" -OutputDirectory "$env:RUNNER_TEMP/kitn-release" -ContinuousIntegrationBuild
+
+      - name: Push the version and tag, then publish the release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+          BASE: ${{ steps.version.outputs.base }}
+          TAG_EXISTS: ${{ steps.version.outputs.tag_exists }}
+          DRAFT_EXISTS: ${{ steps.version.outputs.draft_exists }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $remote = git ls-remote origin "refs/heads/$env:DEFAULT_BRANCH"
+          if ($LASTEXITCODE -ne 0 -or ($remote -split '\s+')[0] -ne $env:BASE) {
+            throw 'The default branch changed during the build. Nothing was published; start a new workflow run.'
+          }
+          if ($env:TAG_EXISTS -ne 'true') {
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag -a $env:TAG -m "KITN $env:VERSION"
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot create the release tag.' }
+            git push --atomic origin "HEAD:refs/heads/$env:DEFAULT_BRANCH" "refs/tags/$env:TAG"
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot push the version and tag. No release was published.' }
+          }
+          $zip = "$env:RUNNER_TEMP/kitn-release/KITN-$env:VERSION.zip"
+          $checksum = "$zip.sha256"
+          if ($env:DRAFT_EXISTS -eq 'true') {
+            gh release upload $env:TAG $zip $checksum --clobber
+            if ($LASTEXITCODE -ne 0) { throw 'Could not upload the release assets; the release remains a draft.' }
+          }
+          else {
+            $notes = @"
+          Kitten Intelligent Trajectory Navigator for Kitten Space Agency.
+
+          Download **KITN-$env:VERSION.zip**. Extract its KITN folder into your KSA profile's mods folder, enable KITN in manifest.toml, and launch with StarMap 0.5.4 or newer. The archive uses Borea's standard mod layout.
+
+          Version: **$env:VERSION**. Commit: $env:COMMIT.
+
+          Source code: https://github.com/$env:GH_REPO/tree/$env:TAG
+
+          The .sha256 file contains the archive's SHA-256 checksum.
+          "@
+            $notesFile = "$env:RUNNER_TEMP/kitn-release/notes.md"
+            [IO.File]::WriteAllText($notesFile, $notes, [Text.UTF8Encoding]::new($false))
+            gh release create $env:TAG $zip $checksum --draft --verify-tag --title "KITN $env:VERSION" --generate-notes --notes-file $notesFile
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the release; an existing draft can be resumed with current.' }
+          }
+          gh release edit $env:TAG --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish the draft; rerun with current to resume.' }
+          @("## KITN $env:VERSION", '', "Release: https://github.com/$env:GH_REPO/releases/tag/$env:TAG",
+            '', "Commit: $env:COMMIT", '', 'Verified StarMap/Borea ZIP and SHA-256 checksum.') | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+      - name: Summarize the dry run
+        if: ${{ inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          "Dry run passed: KITN $env:VERSION built and verified on Linux. No release was published." | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+      - name: Remove temporary references
+        if: always()
+        run: |
+          $temporaryRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+          $references = [IO.Path]::GetFullPath((Join-Path $temporaryRoot 'ksa-refs'))
+          if ([IO.Path]::GetDirectoryName($references) -ne $temporaryRoot) { throw 'Unexpected reference cleanup path.' }
+          if (Test-Path -LiteralPath $references) { Remove-Item -LiteralPath $references -Recurse -Force }
+          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $checkout = [IO.Path]::GetFullPath((Join-Path $workspace '.local/ksa-build-refs'))
+          if (-not $checkout.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal)) { throw 'Unexpected reference checkout cleanup path.' }
+          if (Test-Path -LiteralPath $checkout) { Remove-Item -LiteralPath $checkout -Recurse -Force }

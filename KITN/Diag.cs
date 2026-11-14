@@ -45,7 +45,7 @@ namespace KITN
             }
             catch (Exception ex) { ReportFileError(ex); }
 
-            Info("SESSION", F($"session_id={SessionId} mod_version={typeof(Diag).Assembly.GetName().Version} game_version={typeof(Vehicle).Assembly.GetName().Version} runtime={Environment.Version} max_file_bytes={MAX_FILE_BYTES} archives={ARCHIVE_COUNT} log_dir=\"{_dir}\""));
+            Info("SESSION", F($"session_id={SessionId} mod_version={BuildInfo.Version} mod_commit={BuildInfo.Commit} game_version={typeof(Vehicle).Assembly.GetName().Version} runtime={Environment.Version} max_file_bytes={MAX_FILE_BYTES} archives={ARCHIVE_COUNT} log_dir=\"{_dir}\""));
         }
 
         public static void Log(string message)

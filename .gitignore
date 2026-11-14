@@ -18,6 +18,9 @@ flight_presets.json*
 ui_layout.json*
 backups/
 /artifacts/flight-analysis/
+/artifacts/releases/
+/.local/
+/build/refs/
 
 # Local credentials and operating-system metadata
 .env

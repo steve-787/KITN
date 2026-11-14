@@ -25,7 +25,7 @@ $projDir = Split-Path $csproj -Parent
 
 # 1. Build
 Write-Host "[1/4] Baue KITN..." -ForegroundColor Yellow
-dotnet build "$csproj" -c Release
+dotnet build "$csproj" -c Release "-p:KSAPath=$KSAPath"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Fehler beim Buildvorgang!" -ForegroundColor Red
     exit 1
@@ -49,6 +49,8 @@ if (Test-Path -LiteralPath $pdbSource) {
     Copy-Item -LiteralPath $pdbSource -Destination (Join-Path $targetModDir "KITN.pdb") -Force
 }
 Copy-Item -Path $tomlSource -Destination (Join-Path $targetModDir "mod.toml") -Force
+Copy-Item -LiteralPath (Join-Path $projDir "bin\Release\net9.0\KITN.deps.json") -Destination (Join-Path $targetModDir "KITN.deps.json") -Force
+Copy-Item -LiteralPath (Join-Path $root "LICENSE") -Destination (Join-Path $targetModDir "LICENSE") -Force
 $noticesSource = Join-Path $projDir "bin\Release\net9.0\THIRD_PARTY_NOTICES.md"
 if (Test-Path -LiteralPath $noticesSource) {
     Copy-Item -LiteralPath $noticesSource -Destination (Join-Path $targetModDir "THIRD_PARTY_NOTICES.md") -Force

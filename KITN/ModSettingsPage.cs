@@ -50,9 +50,15 @@ namespace KITN
             float remaining = ImGui.GetContentRegionAvail().Y;
             ImGui.Dummy(new float2(0, Math.Max(8 * scale, remaining - 44 * scale)));
             ImGui.Separator();
+            float footerWidth = ImGui.GetContentRegionAvail().X;
+            float versionWidth = ImGui.CalcTextSize(BuildInfo.DisplayVersion).X;
             UiIcons.Text("github", "steve-787/KITN", GameUiColors.Muted);
-            if (ImGui.IsItemClicked()) Process.Start(new ProcessStartInfo("https://github.com/steve-787/KITN") { UseShellExecute = true });
-            ModWindowStyle.Hint("GitHub · https://github.com/steve-787/KITN");
+            if (ImGui.IsItemClicked()) Process.Start(new ProcessStartInfo(BuildInfo.RepositoryUrl) { UseShellExecute = true });
+            ModWindowStyle.Hint("GitHub · " + BuildInfo.RepositoryUrl);
+            if (footerWidth >= ImGui.CalcTextSize("steve-787/KITN").X + ImGui.GetFontSize() + versionWidth + 32 * scale)
+                ImGui.SameLine();
+            ImGui.TextColored(GameUiColors.Muted, BuildInfo.DisplayVersion);
+            ModWindowStyle.Hint(BuildInfo.InformationalVersion);
             return diagnostics;
         }
 

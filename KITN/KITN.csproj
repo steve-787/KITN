@@ -6,13 +6,18 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/../version.txt').Trim())</Version>
+    <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
+    <RepositoryUrl>https://github.com/steve-787/KITN</RepositoryUrl>
+    <Description>Kitten Intelligent Trajectory Navigator for Kitten Space Agency</Description>
     <AssemblyName>KITN</AssemblyName>
     <RootNamespace>KITN</RootNamespace>
     <NoWarn>MSB3277;CS1705;CA1416</NoWarn>
 
     <!-- Path to Kitten Space Agency installation -->
-    <KSAPath>K:\Games\Kitten Space Agency</KSAPath>
+    <KSAPath Condition="'$(KSAPath)' == ''">K:\Games\Kitten Space Agency</KSAPath>
+    <StarMapApiVersion>0.5.4</StarMapApiVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -48,7 +53,7 @@
 
     <!-- StarMap Mod Loader API -->
     <Reference Include="StarMap.API">
-      <HintPath>C:\Users\karst\.nuget\packages\starmap.api\0.5.4\lib\net10.0\StarMap.API.dll</HintPath>
+      <HintPath>$(NuGetPackageRoot)starmap.api/$(StarMapApiVersion)/lib/net10.0/StarMap.API.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
@@ -108,6 +113,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Download the API without adding a runtime dependency; StarMap supplies it. -->
+    <PackageDownload Include="StarMap.API" Version="[$(StarMapApiVersion)]" />
+    <None Update="mod.toml" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Assets/Icons/lucide.bin" LogicalName="KITN.Lucide" />
     <EmbeddedResource Include="Assets/Icons/LICENSE" LogicalName="KITN.Lucide.LICENSE" />
     <None Update="Assets/Icons/LICENSE" CopyToOutputDirectory="PreserveNewest" />

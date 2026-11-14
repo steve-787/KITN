@@ -1,6 +1,6 @@
 # KITN
 
-Kitten Intelligent Trajectory. A mod for Kitten Space Agency that flies your rocket into orbit.
+Kitten Intelligent Trajectory Navigator. A mod for Kitten Space Agency that flies your rocket into orbit.
 
 Pick a target orbit and press start. The mod handles throttle, pitch and staging through the ascent and the circularization burn. It can also bring a booster back from orbit and set it down on a launch pad.
 
@@ -10,16 +10,18 @@ The windows use the game's own fonts and widgets, so they look like part of Kitt
 
 Active development, and it is likely buggy. The interface will change without warning. Save your game before you fly.
 
-There are no prebuilt binaries here. Build from source, `main` always has the newest code.
+Download prebuilt packages from [GitHub Releases](https://github.com/steve-787/KITN/releases). `main` has the newest development code.
 
 ## Requirements
 
 - Windows
 - Kitten Space Agency, written against version 2026.11.10.5801
-- The StarMap mod loader, the installer downloads it
-- The .NET 9 SDK
+- The StarMap mod loader, version 0.5.4 or newer
+- The .NET 10 runtime required by StarMap
 
 ## Build
+
+Building from source also requires the .NET 9 SDK.
 
 ```powershell
 dotnet build .\KITN\KITN.csproj -c Release
@@ -27,23 +29,35 @@ dotnet build .\KITN\KITN.csproj -c Release
 
 The output is `KITN\bin\Release\net9.0\KITN.dll`.
 
-The build copies references out of the game folder, so `KITN\KITN.csproj` has to point at a real install. It defaults to `K:\Games\Kitten Space Agency`, change `KSAPath` if yours is elsewhere. A wrong path fails with missing assembly errors.
+The build reads assembly references from `K:\Games\Kitten Space Agency` by default. For another installation, pass `"-p:KSAPath=C:\path\to\Kitten Space Agency"` to `dotnet build`. The StarMap API is downloaded automatically from NuGet and supplied by the loader at runtime.
 
 ## Install
 
-```powershell
-.\install.ps1
-```
-
-The script builds the project, copies `KITN.dll`, `KITN.pdb` and `mod.toml` into `Documents\My Games\Kitten Space Agency\mods\KITN\`, registers the mod in `manifest.toml`, and downloads `StarMap.exe` into the game folder if it is not there yet.
-
-By hand, copy the three files into the mods folder and add this to `manifest.toml`:
+Download `KITN-<version>.zip` from [GitHub Releases](https://github.com/steve-787/KITN/releases). Extract the **KITN** folder into your game profile's `mods` folder, usually `Documents\My Games\Kitten Space Agency\mods\`. Enable it in that profile's `manifest.toml`:
 
 ```toml
 [[mods]]
 id = "KITN"
 enabled = true
 ```
+
+Start the game through StarMap. Updating the mod means replacing its packaged files in the same KITN folder; keep your saved JSON settings and presets.
+
+The ZIP has one `KITN/` folder containing `mod.toml`, `KITN.dll`, dependency metadata, debug symbols and licenses. This is the standard layout expected by [Borea](https://ksamodding.github.io/Borea/). KITN will appear in Borea after it is added to the community content index. Each release also includes a `.zip.sha256` checksum file.
+
+To install from a source checkout instead:
+
+```powershell
+.\install.ps1
+```
+
+The script builds the project, copies the mod and licenses into the mods folder, registers KITN in `manifest.toml`, and downloads `StarMap.exe` into the game folder if it is not there yet. Pass `-KSAPath` if the game is installed elsewhere.
+
+## Releases
+
+On GitHub, open **Actions → Release KITN → Run workflow**, select the default branch, then choose **patch**, **minor**, **major** or **current**. The workflow updates `version.txt`, tests and builds the mod, commits the version change, creates a `v<version>` tag, and publishes the verified ZIP and checksum as a GitHub Release. Choose **current** to publish the initial 0.1.0 release without a bump.
+
+The build uses an Ubuntu runner and a small archive of compile-only game references from a private GitHub repository. Setup, reference updates and future Borea registration are described in [the release guide](docs/releasing.md).
 
 ## Running
 
@@ -57,6 +71,8 @@ stays on the right. If you close KITN, the small Home icon at the lower left
 reopens the launcher during flight.
 
 Settings, presets and window positions are saved next to the mod DLL in the mods folder, as `flight_presets.json` and `ui_layout.json`.
+
+The bottom of Settings shows the installed mod version and its short Git commit hash beside the GitHub link. Hover over the version to see the full build identifier.
 
 Open the **settings gear → Widgets** to enable the mission time/altitude widget
 and choose its theme. **Retro** uses mechanical drums for altitude, mission time,
