@@ -70,9 +70,14 @@ internal static class UiLayoutTests
         byte[] original = File.ReadAllBytes(path);
         UiWindowBounds changed = MainBounds(); changed.X = 250;
         store.Record("autopilot", changed, 1000);
-        using (var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        // Unix can replace an open file, so block the backup destination instead.
+        Directory.CreateDirectory(path + ".bak");
+        try
+        {
             Check(store.Flush(1500) == UiLayoutSaveResult.Failed && store.IsDirty && store.LastError != null,
                 "A failed layout write discards pending movement");
+        }
+        finally { Directory.Delete(path + ".bak"); }
         Check(File.ReadAllBytes(path).SequenceEqual(original) && Directory.GetFiles(Path.GetDirectoryName(path), "*.tmp").Length == 0,
             "A failed atomic layout write alters existing data or leaves temporary files");
         Check(store.Flush(6499) == UiLayoutSaveResult.Unchanged && store.Flush(6500) == UiLayoutSaveResult.Saved,

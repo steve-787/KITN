@@ -100,9 +100,14 @@ internal static class FlightPresetTests
         var store = new FlightPresetStore(path);
         Check(store.Load() && store.Save("Existing", Custom()), "Could not create original data");
         byte[] previous = File.ReadAllBytes(path);
-        using (var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        // A directory at the backup destination prevents replacement on Windows and Unix.
+        Directory.CreateDirectory(path + ".bak");
+        try
+        {
             Check(!store.Save("Other", Custom()) && store.Presets.Count == 1, "Failed atomic commit changes the in-memory preset list");
+        }
+        finally { Directory.Delete(path + ".bak"); }
         Check(File.ReadAllBytes(path).SequenceEqual(previous), "Failed preset commit destroys the existing file");
-        Check(store.Save("Other", Custom()), "Saving does not recover after a file-sharing failure");
+        Check(store.Save("Other", Custom()), "Saving does not recover after a file-write failure");
     }
 }
