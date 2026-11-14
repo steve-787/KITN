@@ -47,12 +47,15 @@ namespace KITN
                 {
                     float footerHeight = ImGui.GetFontSize() + 6 * scale;
                     float rowHeight = Math.Max(4 * scale, (ImGui.GetContentRegionAvail().Y - footerHeight - 12 * scale * compact - 1) / 2);
-                    _time.Draw(L10n.Get("window.mission_time"), display, theme, rowHeight);
+                    _time.Draw(display, theme, rowHeight);
                     if (IsChromeVisible) ImGui.Separator();
                     else ImGui.Dummy(new float2(ImGui.GetContentRegionAvail().X, 1));
                     bool hasAltitude = flight?.HasVehicle == true && double.IsFinite(flight.AltitudeMeters);
                     if (hasAltitude) Altitude?.Draw(); else Altitude?.Release();
-                    _altitude.Draw(L10n.Get("instrument.altitude"), InstrumentReadout.Altitude(hasAltitude ? flight.AltitudeMeters : double.NaN, theme), theme, rowHeight);
+                    float altitudeLift = Math.Min(20 * scale, rowHeight * 0.15f
+                        + Math.Max(0, rowHeight - 52 * scale) * 0.2f);
+                    _altitude.Draw(InstrumentReadout.Altitude(hasAltitude ? flight.AltitudeMeters : double.NaN, theme),
+                        theme, rowHeight, -altitudeLift);
                     string status = clock.Mode switch
                     {
                         MissionClock.ClockMode.Ready => L10n.Get("clock.ready"),
@@ -78,7 +81,8 @@ namespace KITN
                         }
                         finally { ImGui.EndDisabled(); }
                     }
-                    else if (IsChromeVisible) ImGui.TextColored(GameUiColors.Muted, status);
+                    else if (IsChromeVisible) ImGui.TextColored(GameUiColors.Muted,
+                        hasAltitude && flight.AltitudeBodyName != "—" ? flight.AltitudeBodyName + " · " + status : status);
                     if (IsChromeVisible) ModWindowStyle.Hint(L10n.Get("settings.alignment_hint"));
                 }
                 finally { ImGui.PopStyleVar(); ConsoleStyle.PopFont(); }

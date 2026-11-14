@@ -12,6 +12,14 @@
     <Compile Include="FlightDisplayTests.cs" />
     <Compile Include="MissionClockTests.cs" />
     <Compile Include="LandingTests.cs" />
+    <Compile Include="TransferTests.cs" />
+    <Compile Include="TransferSafetyTests.cs" />
+    <Compile Include="../KITN/TransferSafety.cs" Link="TransferSafety.cs" />
+    <Compile Include="DockingTests.cs" />
+    <Compile Include="../KITN/DockingMath.cs" Link="DockingMath.cs" />
+    <Compile Include="../KITN/TransferMath.cs" Link="TransferMath.cs" />
+    <Compile Include="../KITN/TransferLambert.cs" Link="TransferLambert.cs" />
+    <Compile Include="../KITN/TransferPlotData.cs" Link="TransferPlotData.cs" />
     <Compile Include="FlightPresetTests.cs" />
     <Compile Include="UiLayoutTests.cs" />
     <Compile Include="UiExperienceTests.cs" />

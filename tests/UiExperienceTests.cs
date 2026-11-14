@@ -13,15 +13,18 @@ internal static class UiExperienceTests
         // A real version-one position file with no theme must migrate without losing geometry.
         File.WriteAllText(path, "{\"version\":1,\"windows\":{\"autopilot\":{\"x\":45,\"y\":70,\"width\":780,\"height\":650,\"interfaceScale\":1}}}");
         var store = new UiLayoutStore(path);
-        Check(store.Load() && store.Theme == UiTheme.Retro && !store.AutoHideInstrumentFrame && !store.IsDirty, "Existing layouts do not default to visible Retro windows cleanly");
+        Check(store.Load() && store.Theme == UiTheme.Retro && !store.AutoHideInstrumentFrame && store.AllowRcs && !store.IsDirty, "Existing layouts do not default to visible Retro windows and permitted RCS cleanly");
         Check(store.SetTheme(UiTheme.Modern, 100) && !store.SetTheme(UiTheme.Modern, 200), "Theme changes are lost or unchanged selections dirty the file");
         Check(store.SetAutoHideInstrumentFrame(true, 100) && !store.SetAutoHideInstrumentFrame(true, 200), "Auto-hide preference is lost or unchanged values cause repeated writes");
+        Check(store.SetAllowRcs(false, 100) && !store.SetAllowRcs(false, 200), "RCS permission cannot be disabled or causes repeated writes");
         Check(store.Flush(599) == UiLayoutSaveResult.Unchanged && store.Flush(600) == UiLayoutSaveResult.Saved, "Theme autosave ignores the debounce");
         var restarted = new UiLayoutStore(path);
-        Check(restarted.Load() && restarted.Theme == UiTheme.Modern && restarted.AutoHideInstrumentFrame && restarted.Find("autopilot").X == 45, "Theme, auto-hide preference or window position is lost on restart");
+        Check(restarted.Load() && restarted.Theme == UiTheme.Modern && restarted.AutoHideInstrumentFrame && !restarted.AllowRcs && restarted.Find("autopilot").X == 45, "Theme, RCS permission, auto-hide preference or window position is lost on restart");
         Check(restarted.SetAutoHideInstrumentFrame(false, 1000), "Auto-hide cannot be disabled");
+        Check(restarted.SetAllowRcs(true, 1000), "RCS permission cannot be enabled again");
         Check(restarted.SetTheme(UiTheme.Retro, 1000) && restarted.Flush(1000, true) == UiLayoutSaveResult.Saved, "Theme does not flush when closed");
-        Check(new UiLayoutStore(path).Load(), "Saved Retro settings cannot be loaded");
+        var enabled = new UiLayoutStore(path);
+        Check(enabled.Load() && enabled.AllowRcs, "Saved RCS permission cannot be loaded");
         byte[] saved = File.ReadAllBytes(path);
         Check(!restarted.SetTheme((UiTheme)99, 2000) && restarted.Flush(3000) == UiLayoutSaveResult.Unchanged
             && File.ReadAllBytes(path).SequenceEqual(saved), "An invalid theme overwrites user settings");
@@ -30,7 +33,7 @@ internal static class UiExperienceTests
             string invalid = "{\"version\":1,\"windows\":{},\"settings\":{\"theme\":" + theme + "}}";
             File.WriteAllText(path, invalid);
             var damaged = new UiLayoutStore(path);
-            Check(!damaged.Load() && !damaged.SetTheme(UiTheme.Modern, 0) && !damaged.SetAutoHideInstrumentFrame(true, 0)
+            Check(!damaged.Load() && !damaged.SetTheme(UiTheme.Modern, 0) && !damaged.SetAutoHideInstrumentFrame(true, 0) && !damaged.SetAllowRcs(false, 0)
                 && damaged.Flush(1000, true) == UiLayoutSaveResult.Unchanged
                 && File.ReadAllText(path) == invalid, "An unreadable theme file is overwritten");
         }

@@ -23,6 +23,9 @@ namespace KITN
         public string BodyName { get; private set; } = "—";
         public double VerticalSpeed { get; private set; }
         public double AltitudeMeters { get; private set; } = double.NaN;
+        public string AltitudeBodyName { get; private set; } = "—";
+        private Celestial _altitudeBody;
+        private double _lastAltitudeReference = double.NegativeInfinity;
         public double DynamicPressureKpa { get; private set; }
         public double AccelerationG { get; private set; }
         public double Throttle { get; private set; }
@@ -67,6 +70,7 @@ namespace KITN
                 _vehicle = vehicle;
                 _parent = vehicle?.Parent;
                 _warningKey = null;
+                _altitudeBody = null; _lastAltitudeReference = double.NegativeInfinity;
             }
             if (vehicle == null) return;
             VehicleName = vehicle.Id;
@@ -81,6 +85,8 @@ namespace KITN
             }
             BodyName = parent is Astronomical body ? body.Id : parent.GetType().Name;
             AltitudeMeters = vehicle.GetBarometricAltitude();
+            AltitudeBodyName = BodyName;
+            UpdateAltitudeReference(vehicle);
             double3 position = vehicle.GetPositionCci();
             double length = Length(position);
             double3 surfaceVelocity = vehicle.GetSurfaceVelocityCci();
@@ -119,6 +125,41 @@ namespace KITN
             if (finished) Track.Stop();
             if (!_planLocked && guidance.CurrentState == AscentGuidance.AscentState.Idle)
                 RefreshLaunchPlan(vehicle, profile);
+        }
+
+        private void UpdateAltitudeReference(Vehicle vehicle)
+        {
+            double now = Universe.GetElapsedSeconds();
+            double3 position = vehicle.GetPositionCci();
+            if (now < _lastAltitudeReference) { _altitudeBody = null; _lastAltitudeReference = double.NegativeInfinity; }
+            // Search once per second; update distance to the retained body every physics frame.
+            if (now - _lastAltitudeReference >= 1)
+            {
+                _lastAltitudeReference = now;
+                Celestial closest = null;
+                double best = AltitudeMeters * 1.1;
+                if (Universe.CurrentSystem != null)
+                    foreach (Celestial body in Universe.CurrentSystem.All.OfType<Celestial>())
+                    {
+                        if (ReferenceEquals(body, vehicle.Parent) || body.IsStar() || body.Orbit == null) continue;
+                        NavigationTarget? target = NavigationTarget.Create(body, null, vehicle.Parent, new UniverseTime(now));
+                        if (!target.HasValue) continue;
+                        double distance = (position - target.Value.PositionCci).Length();
+                        if (TransferSafety.NearbyAltitude(AltitudeMeters, distance, body.MeanRadius,
+                            ((IParentBody)body).SphereOfInfluence, ReferenceEquals(body, _altitudeBody))
+                            && distance - body.MeanRadius < best)
+                        { closest = body; best = distance - body.MeanRadius; }
+                    }
+                _altitudeBody = closest;
+            }
+            if (_altitudeBody == null || ReferenceEquals(vehicle.Parent, _altitudeBody)) return;
+            NavigationTarget? reference = NavigationTarget.Create(_altitudeBody, null, vehicle.Parent, new UniverseTime(now));
+            if (!reference.HasValue) return;
+            double range = (position - reference.Value.PositionCci).Length();
+            if (!TransferSafety.NearbyAltitude(AltitudeMeters, range, _altitudeBody.MeanRadius,
+                ((IParentBody)_altitudeBody).SphereOfInfluence, true)) return;
+            AltitudeMeters = range - _altitudeBody.MeanRadius;
+            AltitudeBodyName = _altitudeBody.Id;
         }
 
         public void CancelPlanning()

@@ -48,8 +48,8 @@ namespace KITN
         /// <summary>
         /// Evaluates vehicle staging status and triggers the next stage if necessary.
         /// commandedThrottle is what the autopilot currently asks for: while it is ~0 (coast)
-        /// engines are off on purpose, so the main stage must be preserved.
-        /// Empty, previously ignited side boosters may still be discarded.
+        /// engines are off on purpose, so the normal sequence must be preserved.
+        /// Empty, previously ignited branches may still be discarded without igniting the next engine.
         /// </summary>
         public void Update(Vehicle vehicle, double currentTime, float commandedThrottle)
         {

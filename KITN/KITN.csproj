@@ -45,6 +45,10 @@
     </Reference>
 
     <!-- Kitten Space Agency assemblies -->
+    <Reference Include="BepuUtilities">
+      <HintPath>$(KSAPath)\BepuUtilities.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="KSA">
       <HintPath>$(KSAPath)\KSA.dll</HintPath>
       <Private>false</Private>
@@ -93,6 +97,10 @@
       <HintPath>$(KSAPath)\Brutal.Strings.dll</HintPath>
       <Private>false</Private>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../THIRD_PARTY_NOTICES.md" Link="THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

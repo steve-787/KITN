@@ -49,6 +49,10 @@ if (Test-Path -LiteralPath $pdbSource) {
     Copy-Item -LiteralPath $pdbSource -Destination (Join-Path $targetModDir "KITN.pdb") -Force
 }
 Copy-Item -Path $tomlSource -Destination (Join-Path $targetModDir "mod.toml") -Force
+$noticesSource = Join-Path $projDir "bin\Release\net9.0\THIRD_PARTY_NOTICES.md"
+if (Test-Path -LiteralPath $noticesSource) {
+    Copy-Item -LiteralPath $noticesSource -Destination (Join-Path $targetModDir "THIRD_PARTY_NOTICES.md") -Force
+}
 Write-Host "KITN.dll, Debug-Symbole und mod.toml erfolgreich kopiert." -ForegroundColor Green
 
 # 3. In manifest.toml eintragen

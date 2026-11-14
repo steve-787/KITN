@@ -47,6 +47,10 @@
       <Private>false</Private>
     </Reference>
     <!-- Kitten Space Agency assemblies -->
+    <Reference Include="BepuUtilities">
+      <HintPath>$(KSAPath)\BepuUtilities.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="KSA">
       <HintPath>$(KSAPath)\KSA.dll</HintPath>
       <Private>false</Private>

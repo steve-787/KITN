@@ -377,7 +377,7 @@ namespace KITN
             double3 rates = vehicle.GetBodyRates();
             double transverse = Math.Sqrt(rates.Y * rates.Y + rates.Z * rates.Z) * FlightAttitude.RAD_TO_DEG;
             FlightComputer fc = vehicle.FlightComputer;
-            bool hasRcs = fc.RcsTorqueAuthority.LengthSquared() > 1e-10;
+            bool hasRcs = fc.RCSMode == FlightComputerRCSMode.Enabled && fc.RcsTorqueAuthority.LengthSquared() > 1e-10;
             if (_attitude.Update(PointingError, transverse, hasRcs, vehicle.HasPhysicsBubble, 0.25))
                 SetThrottle(vehicle, _propulsion.MinimumThrottle * 0.5, dt, true);
         }

@@ -4,7 +4,7 @@ using KSA;
 
 namespace KITN
 {
-    /// <summary>Reads only the parts removed by each radial connector and queues KSA's native decouple input.</summary>
+    /// <summary>Reads only the parts removed by each connector and queues KSA's native decouple input.</summary>
     internal sealed class BoosterMonitor
     {
         private sealed class Candidate
@@ -59,6 +59,9 @@ namespace KITN
         {
             if (!ReferenceEquals(vehicle, _vehicle) || simulationTime < _lastSimulationTime) { Reset(); _vehicle = vehicle; }
             _lastSimulationTime = simulationTime;
+            // The core may flame out before its separator becomes the next sequence.
+            // Remember ignition across the whole vessel, including while boosters are next.
+            RememberIgnitions(vehicle.Parts.Modules);
             CandidateCount = PendingCount = 0;
             ConfirmationElapsed = 0;
             Status = "no_next_radial_booster";
@@ -90,6 +93,17 @@ namespace KITN
             Sequence upcoming = null;
             foreach (Sequence sequence in sequences.Sequences)
                 if (sequence.Number == next) { upcoming = sequence; break; }
+            // Individually dropping boosters does not mark their native sequence activated.
+            // Advance only a group containing spent decouplers and no other actions.
+            if (upcoming != null && IsSpentSequence(upcoming, next))
+            {
+                int spent = next;
+                sequences.ActivateNextSequence(vehicle);
+                Diag.Info("STAGING", $"event=spent_sequence_advanced sequence={spent} vehicle=\"{vehicle.Id}\"");
+                next = sequences.GetNextSequenceNumber(); upcoming = null;
+                foreach (Sequence sequence in sequences.Sequences)
+                    if (sequence.Number == next) { upcoming = sequence; break; }
+            }
             if (upcoming == null) return PendingCount > 0;
             bool onlyBoosters = true;
             bool requested = false;
@@ -98,8 +112,9 @@ namespace KITN
                 foreach (ISequenced module in part.GetSubtreeSequencedModules())
                 {
                     if (module.Sequence != next) continue;
-                    if (!(module is Decoupler decoupler) || !IsRadial(decoupler)) { onlyBoosters = false; continue; }
-                    if (!decoupler.IsEnabled || decoupler.Connector.Connection == null) continue;
+                    if (!(module is Decoupler decoupler)) { onlyBoosters = false; continue; }
+                    if (!IsRadial(decoupler)) onlyBoosters = false;
+                    if (!decoupler.IsEnabled || decoupler.IsActive || decoupler.Connector.Connection == null) continue;
                     CandidateCount++;
                     if (!_candidates.TryGetValue(decoupler.InstanceId, out Candidate candidate))
                     {
@@ -107,7 +122,7 @@ namespace KITN
                         _candidates.Add(decoupler.InstanceId, candidate);
                     }
                     if (!double.IsNaN(candidate.RequestedAt)) continue;
-                    if (!TryGetRadialBranch(decoupler, out Part branch)) continue;
+                    if (!TryGetDiscardedBranch(decoupler, out Part branch)) continue;
                     try
                     {
                         BoosterObservation observation = ReadFuel(vehicle, branch);
@@ -143,7 +158,7 @@ namespace KITN
                     {
                         candidate.Confirmation.Reset();
                         Status = "booster_read_failed";
-                        Diag.EveryError("booster_" + decoupler.InstanceId, 5, "BOOSTER", ex, "Reading radial booster propellant failed; separation withheld");
+                        Diag.EveryError("booster_" + decoupler.InstanceId, 5, "BOOSTER", ex, "Reading detachable branch propellant failed; separation withheld");
                     }
                 }
             }
@@ -155,16 +170,45 @@ namespace KITN
         private static bool IsRadial(Decoupler decoupler)
             => decoupler.Parent.FullPart.Template.HasEditorTag(EditorTag.Radial);
 
+        internal static bool IsSpentSequence(Sequence sequence, int number)
+        {
+            bool hasDecoupler = false;
+            foreach (Part part in sequence.Parts)
+                foreach (ISequenced module in part.GetSubtreeSequencedModules())
+                {
+                    if (module.Sequence != number) continue;
+                    if (!(module is Decoupler decoupler)) return false;
+                    hasDecoupler = true;
+                    // Disabled modules are a user preference, rather than evidence of a completed separation.
+                    if (decoupler.Connector.Connection != null) return false;
+                }
+            return hasDecoupler;
+        }
+
         internal static bool TryGetRadialBranch(Decoupler decoupler, out Part branch)
         {
             branch = null;
-            if (!IsRadial(decoupler) || !decoupler.IsEnabled) return false;
+            return IsRadial(decoupler) && TryGetDiscardedBranch(decoupler, out branch);
+        }
+
+        internal static bool TryGetDiscardedBranch(Decoupler decoupler, out Part branch)
+        {
+            branch = null;
+            if (!decoupler.IsEnabled || decoupler.IsActive) return false;
             Part owner = decoupler.Parent.FullPart;
             Part other = decoupler.Connector.Connection?.OtherPart(owner)?.FullPart;
             if (other == null) return false;
             if (ReferenceEquals(owner.TreeParent, other)) branch = owner;
             else if (ReferenceEquals(other.TreeParent, owner)) branch = other;
             return branch != null && !branch.IsRoot;
+        }
+
+        private void RememberIgnitions(ModuleList modules)
+        {
+            foreach (EngineController engine in modules.Get<EngineController>())
+                if (engine.IsActive) _ignited.Add(engine.InstanceId);
+            foreach (ThrusterController thruster in modules.Get<ThrusterController>())
+                if (thruster.IsActive) _ignited.Add(thruster.InstanceId);
         }
 
         private BoosterObservation ReadFuel(Vehicle vehicle, Part branch)

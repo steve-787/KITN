@@ -14,6 +14,7 @@ namespace KITN
         private bool _dragging;
         private bool _interacting;
         private float2 _dragOffset;
+        private ImGuiID _windowId;
         private int _lastFrame = -2;
         private AlignmentResult _alignment;
         public PersistentWindowLayout Peer { get; set; }
@@ -46,15 +47,25 @@ namespace KITN
             if (Current?.IsValid == true && sizeCondition != ImGuiCond.Always)
             {
                 var io = ImGui.GetIO();
-                bool move = _dragging && (ImGui.IsMouseDragging(ImGuiMouseButton.Left)
-                    || ImGui.IsMouseReleased(ImGuiMouseButton.Left));
+                var context = ImGui.GetCurrentContext();
+                var nativeMoving = context.MovingWindow;
+                bool nativeDrag = !nativeMoving.IsNull() && nativeMoving.RootWindow.ID == _windowId;
+                if (nativeDrag)
+                {
+                    // Use the native move state and click offset. It includes dragging from
+                    // empty content/child areas and never mistakes a control or resize for a move.
+                    _dragging = true;
+                    _dragOffset = context.ActiveIdClickOffset;
+                }
+                bool move = (nativeDrag && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
+                    || (_dragging && ImGui.IsMouseReleased(ImGuiMouseButton.Left));
                 float2 raw = move ? io.MousePos - _dragOffset : new float2(Current.X, Current.Y);
                 var moving = new UiWindowBounds { X = raw.X, Y = raw.Y,
                     Width = Current.Width, Height = Current.Height, InterfaceScale = scale };
                 var screen = new UiWindowBounds { X = viewport.WorkPos.X, Y = viewport.WorkPos.Y,
                     Width = viewport.WorkSize.X, Height = viewport.WorkSize.Y, InterfaceScale = scale };
                 UiWindowBounds peer = Peer?.Enabled == true && Peer._lastFrame >= ImGui.GetFrameCount() - 1 ? Peer.Current : null;
-                _alignment = move && io.KeyAlt ? WindowAlignment.Snap(moving, screen, peer, 10 * scale) : new AlignmentResult(
+                _alignment = move && AlignmentHeld ? WindowAlignment.Snap(moving, screen, peer, 10 * scale) : new AlignmentResult(
                     Math.Clamp(raw.X, screen.X, screen.X + Math.Max(0, screen.Width - moving.Width)),
                     Math.Clamp(raw.Y, screen.Y, screen.Y + Math.Max(0, screen.Height - moving.Height)), null, null);
                 if (move || _alignment.X != Current.X || _alignment.Y != Current.Y)
@@ -70,11 +81,9 @@ namespace KITN
         {
             float2 position = ImGui.GetWindowPos(), size = ImGui.GetWindowSize();
             var io = ImGui.GetIO();
-            float titleHeight = ImGui.GetFontSize() + ImGui.GetStyle().FramePadding.Y * 2;
-            if (ImGui.IsMouseClicked(ImGuiMouseButton.Left) && ImGui.IsWindowHovered()) _interacting = true;
-            if (ImGui.IsMouseClicked(ImGuiMouseButton.Left) && ImGui.IsWindowHovered()
-                && io.MousePos.Y >= position.Y && io.MousePos.Y < position.Y + titleHeight)
-            { _dragging = true; _dragOffset = io.MousePos - position; }
+            _windowId = ImGui.GetCurrentContext().CurrentWindow.RootWindow.ID;
+            if (ImGui.IsMouseClicked(ImGuiMouseButton.Left) && ImGui.IsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows))
+                _interacting = true;
             if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) { _dragging = false; _interacting = false; }
             Current = new UiWindowBounds
             { X = position.X, Y = position.Y, Width = size.X, Height = size.Y, InterfaceScale = scale };
@@ -84,7 +93,7 @@ namespace KITN
 
         public static void DrawGuides(PersistentWindowLayout first, PersistentWindowLayout second)
         {
-            if (!ImGui.GetIO().KeyAlt) return;
+            if (!AlignmentHeld) return;
             bool Visible(PersistentWindowLayout layout) => layout?.Enabled == true && layout._lastFrame == ImGui.GetFrameCount();
             if (!Visible(first) && !Visible(second)) return;
             var viewport = ImGui.GetMainViewport();
@@ -106,5 +115,8 @@ namespace KITN
             }
             WindowGuides(first); WindowGuides(second);
         }
+
+        private static bool AlignmentHeld => ImGui.GetIO().KeyAlt
+            || ImGui.IsKeyDown(ImGuiKey.LeftAlt) || ImGui.IsKeyDown(ImGuiKey.RightAlt);
     }
 }

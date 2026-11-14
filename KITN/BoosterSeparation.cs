@@ -4,20 +4,20 @@ namespace KITN
 {
     internal readonly struct BoosterObservation
     {
-        public readonly bool ConnectedRadially, ContainsControl, FuelDataValid;
+        public readonly bool Connected, ContainsControl, FuelDataValid;
         public readonly int ActivatedPropulsion, FuturePropulsion, FuelStores;
         public readonly double UsableFillFraction;
 
-        public BoosterObservation(bool connectedRadially, bool containsControl, bool fuelDataValid,
+        public BoosterObservation(bool connected, bool containsControl, bool fuelDataValid,
             int activatedPropulsion, int futurePropulsion, int fuelStores, double usableFillFraction)
         {
-            ConnectedRadially = connectedRadially; ContainsControl = containsControl; FuelDataValid = fuelDataValid;
+            Connected = connected; ContainsControl = containsControl; FuelDataValid = fuelDataValid;
             ActivatedPropulsion = activatedPropulsion; FuturePropulsion = futurePropulsion;
             FuelStores = fuelStores; UsableFillFraction = usableFillFraction;
         }
     }
 
-    /// <summary>Per-booster confirmation. Neither core thrust nor a vehicle-wide fill level enters this decision.</summary>
+    /// <summary>Per-branch confirmation. Neither commanded thrust nor a vehicle-wide fill level enters this decision.</summary>
     internal sealed class BoosterSeparation
     {
         internal const double EmptyFraction = 0.000001;
@@ -30,7 +30,7 @@ namespace KITN
         {
             ConfirmationElapsed = 0;
             string blocked = !double.IsFinite(simulationTime) ? "invalid_simulation_time"
-                : !observation.ConnectedRadially ? "no_radial_attachment"
+                : !observation.Connected ? "no_detachable_branch"
                 : observation.ContainsControl ? "branch_contains_control"
                 : observation.ActivatedPropulsion == 0 ? "booster_not_ignited"
                 : observation.FuturePropulsion > 0 ? "branch_has_unstarted_propulsion"

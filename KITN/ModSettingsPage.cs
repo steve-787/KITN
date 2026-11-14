@@ -23,7 +23,7 @@ namespace KITN
             new ThemeChoice(UiTheme.Modern, "settings.modern", "settings.modern_hint")
         };
 
-        public void Draw(UiLayoutStore settings)
+        public bool Draw(UiLayoutStore settings)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
             ImGui.Dummy(new float2(0, 6 * scale));
@@ -32,6 +32,11 @@ namespace KITN
             finally { ConsoleStyle.PopFont(); }
             ImGui.Dummy(new float2(0, 8 * scale));
             Appearance(settings);
+            ImGui.Dummy(new float2(0, 12 * scale));
+            Control(settings);
+            ImGui.Dummy(new float2(0, 12 * scale));
+            ImGui.Separator();
+            bool diagnostics = ConsoleWidgets.Button(L10n.Get("diagnostics.open").AsSpan(), "diagnostics.open".AsSpan(), float2.Zero);
             // Future categories are drawn here, inside the parent's scrolling settings page.
             ImGui.Dummy(new float2(0, 12 * scale));
             ImGui.Separator();
@@ -46,6 +51,27 @@ namespace KITN
             else if (settings?.LastError != null)
                 ImGui.TextWrapped(L10n.Get("settings.save_failed"));
             else ImGui.TextColored(GameUiColors.Muted, L10n.Get(settings?.IsDirty == true ? "settings.saving" : "settings.saved"));
+            return diagnostics;
+        }
+
+        private static void Control(UiLayoutStore settings)
+        {
+            ImGui.Separator();
+            ImGui.TextColored(GameUiColors.Label, L10n.Get("settings.control"));
+            ConsoleWidgets.BeginRow(L10n.Get("settings.allow_rcs").AsSpan());
+            try
+            {
+                bool allowed = settings?.AllowRcs ?? true;
+                ImGui.BeginDisabled(settings?.IsLoaded != true);
+                try
+                {
+                    if (ConsoleWidgets.Checkbox("allow-rcs".AsSpan(), ref allowed, false))
+                        settings?.SetAllowRcs(allowed, Environment.TickCount64);
+                    ModWindowStyle.Hint(L10n.Get("settings.allow_rcs_hint"));
+                }
+                finally { ImGui.EndDisabled(); }
+            }
+            finally { ConsoleWidgets.EndRow(); }
         }
 
         private static void Appearance(UiLayoutStore settings)

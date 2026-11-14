@@ -48,7 +48,7 @@ var tests = new (string Name, Action Run)[]
     ("Window layouts save automatically, survive restart and preserve independent geometry", UiLayoutTests.AutomaticPersistence),
     ("Restored layouts remain reachable after resolution and UI scale changes", UiLayoutTests.ReachableLayout),
     ("Window autosave preserves corrupt files and recovers from failed writes", UiLayoutTests.FileRecovery),
-    ("Instrument themes migrate existing layouts and persist safely", UiExperienceTests.ThemePersistence),
+    ("Instrument themes and RCS permissions migrate existing layouts and persist safely", UiExperienceTests.ThemePersistence),
     ("Window snapping aligns centers and edges without sticking or hiding controls", UiExperienceTests.Alignment),
     ("Countdown reaches zero once and mission time starts at actual launch", MissionClockTests.Launch),
     ("Mission clock formats T minus and plus with full hours, minutes and seconds", MissionClockTests.Display),
@@ -56,6 +56,20 @@ var tests = new (string Name, Action Run)[]
     ("Mission clock follows simulation pauses, warp and time reverts", MissionClockTests.SimulationTime),
     ("Mission elapsed time survives completed guidance and switching to a booster", MissionClockTests.VehicleFocus),
     ("Return transfers reach their rotating target in prograde and retrograde planes", LandingTests.Transfers),
+    ("Docking rejects unsafe approaches and uses stand-off, alignment and gentle final contact", DockingTests.Guards),
+    ("RCS pulse docking reaches stationary and rotating ports from distant and lateral approaches", DockingTests.Approaches),
+    ("Gooding transfer solver matches Vallado velocities and exact Hohmann transfers", TransferTests.Lambert),
+    ("Transfer ephemerides preserve eccentric, inclined and retrograde orbits", TransferTests.Ephemerides),
+    ("Parking-orbit ejections reach the requested hyperbolic excess and burn location", TransferTests.Ejections),
+    ("Porkchop selection honors capture costs, departure budget and invalid cells", TransferTests.Selection),
+    ("Transfer windows prefer bound trajectories and retain necessary escape alternatives", TransferTests.EscapePreference),
+    ("Transfer search rejects early fallback and replans outside rejected windows", TransferTests.ReturnAndReplanning),
+    ("Transfer search reaches moving targets and settles cancellation and invalid windows", TransferTests.Search),
+    ("Interplanetary transfers match Lambert velocities at the finite sphere of influence", TransferTests.Interplanetary),
+    ("Moon transfer windows resolve orbital phase and contours preserve invalid regions", TransferTests.Porkchop),
+    ("Transfer ignition rejects warp, angular inertia, misalignment and missed departure", TransferSafetyTests.Ignition),
+    ("Arrival limits distinguish airless terrain and atmospheres; altitude follows nearby bodies", TransferSafetyTests.Arrival),
+    ("Capture nodes circularize inclined and retrograde lunar arrival orbits", TransferSafetyTests.Capture),
     ("Atmospheric return targeting corrects the predicted landing footprint", LandingTests.AtmosphericTarget),
     ("Powered descent brakes vertical motion and converges on a rotating landing pad", LandingTests.Descent),
     ("Atmospheric return and finite-fuel landing tolerate engine minimums and attitude delay", LandingTests.FullReturn),
@@ -311,27 +325,33 @@ static void RecordedFlight()
 {
     string path = @"C:\Users\karst\Documents\My Games\Kitten Space Agency\mods\KITN\kitn_telemetry.csv";
     if (!File.Exists(path)) { Console.WriteLine("SKIP recorded flight: no local telemetry"); return; }
-    using var file = new StreamReader(path);
-    string[] header = ParseCsv(file.ReadLine()!);
-    int Column(string name) => Array.IndexOf(header, name);
     int tested = 0;
-    string row;
-    while ((row = file.ReadLine()) != null)
+    // A transfer can rotate all ascent samples out of the current log.
+    foreach (string recording in new[] { path, path + ".1", path + ".2", path + ".3" })
     {
-        string[] values = ParseCsv(row);
-        if (values[Column("state")] != "GravityTurn" && values[Column("state")] != "CoastToApoapsis") continue;
-        double Value(string name) => double.Parse(values[Column(name)], CultureInfo.InvariantCulture);
-        double r = Value("radius_from_parent_m");
-        double px = Value("pos_cci_x_m"), py = Value("pos_cci_y_m"), pz = Value("pos_cci_z_m");
-        double vx = Value("velocity_cci_x_m_s"), vy = Value("velocity_cci_y_m_s"), vz = Value("velocity_cci_z_m_s");
-        double vr = (px * vx + py * vy + pz * vz) / r;
-        double vt = Math.Sqrt(Math.Max(0, vx * vx + vy * vy + vz * vz - vr * vr));
-        var elements = OrbitInsertion.CalculateOrbit(Value("gravity_two_body_m_s2") * r * r, r, vr, vt);
-        Check(Math.Abs(elements.ApoapsisRadius - 6371000 - Value("apoapsis_altitude_m")) < 2,
-            "Orbit calculation does not reproduce the logged apoapsis");
-        Check(Math.Abs(elements.PeriapsisRadius - 6371000 - Value("periapsis_altitude_m")) < 2,
-            "Orbit calculation does not reproduce the logged periapsis");
-        tested++;
+        if (!File.Exists(recording)) continue;
+        using var file = new StreamReader(recording);
+        string[] header = ParseCsv(file.ReadLine()!);
+        int Column(string name) => Array.IndexOf(header, name);
+        string row;
+        while ((row = file.ReadLine()) != null)
+        {
+            string[] values = ParseCsv(row);
+            if (values[Column("state")] != "GravityTurn" && values[Column("state")] != "CoastToApoapsis") continue;
+            double Value(string name) => double.Parse(values[Column(name)], CultureInfo.InvariantCulture);
+            double r = Value("radius_from_parent_m");
+            double px = Value("pos_cci_x_m"), py = Value("pos_cci_y_m"), pz = Value("pos_cci_z_m");
+            double vx = Value("velocity_cci_x_m_s"), vy = Value("velocity_cci_y_m_s"), vz = Value("velocity_cci_z_m_s");
+            double vr = (px * vx + py * vy + pz * vz) / r;
+            double vt = Math.Sqrt(Math.Max(0, vx * vx + vy * vy + vz * vz - vr * vr));
+            var elements = OrbitInsertion.CalculateOrbit(Value("gravity_two_body_m_s2") * r * r, r, vr, vt);
+            Check(Math.Abs(elements.ApoapsisRadius - 6371000 - Value("apoapsis_altitude_m")) < 2,
+                "Orbit calculation does not reproduce the logged apoapsis");
+            Check(Math.Abs(elements.PeriapsisRadius - 6371000 - Value("periapsis_altitude_m")) < 2,
+                "Orbit calculation does not reproduce the logged periapsis");
+            tested++;
+        }
+        if (tested > 20) break;
     }
     Check(tested > 20, "No useful failed-flight samples were checked");
     Console.WriteLine($"  {tested} recorded ascent/coast orbit states reproduced");

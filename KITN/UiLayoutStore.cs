@@ -13,6 +13,7 @@ namespace KITN
     {
         public UiTheme Theme { get; set; } = UiTheme.Retro;
         public bool AutoHideInstrumentFrame { get; set; }
+        public bool AllowRcs { get; set; } = true;
     }
 
     internal sealed class UiWindowBounds
@@ -60,7 +61,7 @@ namespace KITN
 
     internal enum UiLayoutSaveResult { Unchanged, Saved, Failed }
 
-    /// <summary>Mod windows only. Writes after movement settles, independently of paused or warped simulation time.</summary>
+    /// <summary>Window layout and mod preferences. Saves independently of paused or warped simulation time.</summary>
     internal sealed class UiLayoutStore
     {
         private readonly string _path;
@@ -74,6 +75,7 @@ namespace KITN
         public int WindowCount => _windows.Count;
         public UiTheme Theme { get; private set; } = UiTheme.Retro;
         public bool AutoHideInstrumentFrame { get; private set; }
+        public bool AllowRcs { get; private set; } = true;
         public UiLayoutStore(string path) { _path = Path.GetFullPath(path); }
         public UiWindowBounds Find(string id) => _windows.TryGetValue(id, out UiWindowBounds bounds) ? bounds : null;
 
@@ -85,6 +87,7 @@ namespace KITN
                 var windows = new Dictionary<string, UiWindowBounds>();
                 UiTheme theme = UiTheme.Retro;
                 bool autoHide = false;
+                bool allowRcs = true;
                 if (File.Exists(_path))
                 {
                     if (new FileInfo(_path).Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
@@ -99,8 +102,9 @@ namespace KITN
                     windows = file.Windows;
                     theme = file.Settings.Theme;
                     autoHide = file.Settings.AutoHideInstrumentFrame;
+                    allowRcs = file.Settings.AllowRcs;
                 }
-                _windows = windows; Theme = theme; AutoHideInstrumentFrame = autoHide;
+                _windows = windows; Theme = theme; AutoHideInstrumentFrame = autoHide; AllowRcs = allowRcs;
                 IsLoaded = true; IsDirty = false; _retryAfterMs = 0;
                 return true;
             }
@@ -118,6 +122,13 @@ namespace KITN
         {
             if (!IsLoaded || AutoHideInstrumentFrame == enabled) return false;
             AutoHideInstrumentFrame = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
+        public bool SetAllowRcs(bool enabled, long nowMs)
+        {
+            if (!IsLoaded || AllowRcs == enabled) return false;
+            AllowRcs = enabled; IsDirty = true; _lastChangeMs = nowMs;
             return true;
         }
 
@@ -143,7 +154,7 @@ namespace KITN
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows,
-                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame } }, Json);
+                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs } }, Json);
                     if (stream.Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     stream.Flush(true);
                 }

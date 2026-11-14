@@ -12,22 +12,15 @@ namespace KITN
         private string _value, _previous;
         private long _changedAt;
 
-        public void Draw(string label, string value, UiTheme theme, float height)
+        public void Draw(string value, UiTheme theme, float height, float verticalOffset = 0)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
             float2 origin = ImGui.GetCursorScreenPos();
             float width = ImGui.GetContentRegionAvail().X;
             var draw = ImGui.GetWindowDrawList();
-            bool showLabel = theme == UiTheme.Modern && height >= 52 * scale;
-            if (showLabel)
-            {
-                ConsoleStyle.PushLabelFont(0.8f);
-                try { draw.AddText(origin, ConsoleStyle.TextMutedU32, label); }
-                finally { ConsoleStyle.PopFont(); }
-            }
-            float labelHeight = showLabel ? 22 * scale : 0;
-            float2 face = origin + new float2(0, labelHeight);
-            float faceHeight = Math.Max(4 * scale, height - labelHeight);
+            float verticalPadding = theme == UiTheme.Modern && height >= 52 * scale ? 22 * scale : 0;
+            float2 face = origin + new float2(0, verticalPadding / 2 + verticalOffset);
+            float faceHeight = Math.Max(4 * scale, height - verticalPadding);
             if (theme == UiTheme.Modern)
             {
                 ConsoleStyle.PushLabelFont(Math.Min(faceHeight * 0.74f / ConsoleStyle.InterfaceFontSize,

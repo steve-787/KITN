@@ -27,6 +27,9 @@ namespace KITN
         private readonly MissionTimeWindow _missionTimeWindow = new MissionTimeWindow();
         private MissionAltitudeDisplay _missionAltitude;
         private readonly LandingController _landing = new LandingController();
+        private readonly ManeuverPlanner _planner = new ManeuverPlanner();
+        private readonly RcsController _rcs = new RcsController();
+        private readonly RendezvousController _rendezvous = new RendezvousController();
         private UiLayoutStore _uiLayout;
         private bool _missionTimeOpen;
         private IParentBody _countdownParent;
@@ -50,6 +53,8 @@ namespace KITN
             _window.Layout = new PersistentWindowLayout(_uiLayout, "autopilot");
             _missionTimeWindow.Layout = new PersistentWindowLayout(_uiLayout, "mission_time");
             _window.Settings = _missionTimeWindow.Settings = _uiLayout;
+            _window.Planner = _planner;
+            _window.Rendezvous = _rendezvous;
             _window.Layout.Peer = _missionTimeWindow.Layout;
             _missionTimeWindow.Layout.Peer = _window.Layout;
             try
@@ -112,6 +117,12 @@ namespace KITN
                 Diag.Info("CONTROL_HOOK", "event=first_guidance_callback execution=before_physics_snapshot");
             Vehicle vehicle = Program.ControlledVehicle;
             ObserveVehicle(vehicle);
+            try { _rendezvous.Refresh(vehicle, _uiLayout.AllowRcs); }
+            catch (Exception ex)
+            {
+                Diag.EveryError("rendezvous_refresh", 5, "RENDEZVOUS", ex, "Reading docking targets failed");
+                _rendezvous.Stop();
+            }
             try { _landing.Refresh(vehicle); }
             catch (Exception ex)
             {
@@ -119,9 +130,18 @@ namespace KITN
                 if (_landing.IsActive) _landing.Abort(vehicle, "landing_availability_exception", "landing.failed");
             }
             string action = _pendingAction;
-            if (!_guidance.IsActive && !_landing.IsActive && _guidance.CurrentState == AscentGuidance.AscentState.Idle)
+            if (!_guidance.IsActive && !_landing.IsActive && !_rendezvous.IsActive && _guidance.CurrentState == AscentGuidance.AscentState.Idle)
                 _flightDisplay.RefreshLaunchPlan(vehicle, _profile, action == "countdown");
             double simulationTime = Universe.GetElapsedSeconds();
+            try
+            {
+                _planner.Refresh(vehicle, simulationTime);
+                if (action?.StartsWith("transfer_", StringComparison.Ordinal) == true)
+                    _planner.HandleAction(action, vehicle, _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _rendezvous.IsActive);
+                if (action?.StartsWith("rendezvous_", StringComparison.Ordinal) == true)
+                    _rendezvous.HandleAction(action, vehicle, _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _planner.IsExecuting, _uiLayout.AllowRcs);
+            }
+            catch (Exception ex) { Diag.EveryError("transfer_refresh", 5, "TRANSFER", ex, "Reading transfer planner state failed"); }
             bool blockedCountdown = action == "cancel_countdown" || action == "abort" || action == "reset";
             if (_missionClock.IsCountingDown && (vehicle == null || !ReferenceEquals(vehicle.Parent, _countdownParent)))
             {
@@ -137,7 +157,7 @@ namespace KITN
                     switch (action)
                     {
                         case "countdown":
-                            if (!_guidance.IsActive && !_landing.IsActive)
+                            if (!_guidance.IsActive && !_landing.IsActive && !_planner.IsExecuting && !_rendezvous.IsActive)
                             {
                                 _flightDisplay.RefreshLaunchPlan(vehicle, _profile, true);
                                 if (!_flightDisplay.CanLaunch(_profile))
@@ -156,7 +176,7 @@ namespace KITN
                             Diag.Info("COUNTDOWN", "event=cancelled reason=user_cancel");
                             break;
                         case "start":
-                            if (_landing.IsActive) break;
+                            if (_landing.IsActive || _planner.IsExecuting || _rendezvous.IsActive) break;
                             _flightDisplay.RefreshLaunchPlan(vehicle, _profile, true);
                             if (!_flightDisplay.CanLaunch(_profile))
                             {
@@ -171,11 +191,11 @@ namespace KITN
                             _missionClock.MarkLaunched(simulationTime);
                             Diag.Info("COUNTDOWN", "event=launch time=T+00:00:00");
                             break;
-                        case "abort": _guidance.Abort(vehicle); break;
-                        case "reset": _landing.Reset(vehicle); _guidance.Reset(vehicle); _missionClock.Reset(); break;
-                        case "warp": _guidance.TriggerManualWarpToApoapsis(vehicle); break;
+                        case "abort": _planner.HandleAction("transfer_stop", vehicle, false); _guidance.Abort(vehicle); break;
+                        case "reset": _planner.HandleAction("transfer_stop", vehicle, false); _rendezvous.Stop(); _landing.Reset(vehicle); _guidance.Reset(vehicle); _missionClock.Reset(); break;
+                        case "warp": if (!_rendezvous.IsActive && !_planner.IsExecuting) _guidance.TriggerManualWarpToApoapsis(vehicle); break;
                         case "landing_start":
-                            if (!_guidance.IsActive && !_missionClock.IsCountingDown && _landing.Start(vehicle, simulationTime))
+                            if (!_guidance.IsActive && !_missionClock.IsCountingDown && !_planner.IsExecuting && !_rendezvous.IsActive && _landing.Start(vehicle, simulationTime))
                             {
                                 if (!_missionClock.HasLaunched)
                                 {
@@ -189,9 +209,13 @@ namespace KITN
                         case "landing_abort": if (_landing.IsActive) _landing.Abort(vehicle); break;
                     }
                     _pendingAction = null;
+                    UpdateRcs(vehicle);
                     _landing.Update(vehicle, simulationTime, dtPlayer);
                     _guidance.LandingDebug = _landing.Telemetry(_missionClock);
                     _guidance.Update(vehicle, _playerTime + dtPlayer, dtPlayer);
+                    _rendezvous.Update(vehicle, simulationTime, _uiLayout.AllowRcs);
+                    _planner.UpdateExecution(vehicle, simulationTime, _uiLayout.AllowRcs,
+                        _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _rendezvous.IsActive);
                 }
                 catch (Exception ex)
                 {
@@ -199,11 +223,15 @@ namespace KITN
                         $"Physics guidance failed: state={_guidance.CurrentState} hook_calls={_physicsHookCalls}");
                     if (_landing.IsActive) _landing.Abort(vehicle, "guidance_exception", "landing.failed");
                     if (_guidance.IsActive) _guidance.Abort(vehicle, "guidance_exception");
+                    _rendezvous.Stop();
+                    _planner.HandleAction("transfer_stop", vehicle, false);
                 }
+                finally { UpdateRcs(vehicle); }
             }
             else
             {
                 _pendingAction = null;
+                _rcs.Restore();
             }
             if (_guidance != null)
                 _flightDisplay.Update(vehicle, _profile, _guidance, action);
@@ -217,6 +245,8 @@ namespace KITN
                 if (_vehicleObserved) _pendingAction = null;
                 if (_lastControlledVehicle != null && _guidance != null && _guidance.IsActive)
                     _guidance.Abort(_lastControlledVehicle, "controlled_vehicle_changed");
+                _rendezvous.Stop(_rendezvous.IsDockedToTarget);
+                _rcs.Restore();
                 Diag.Info("VEHICLE", $"previous=\"{_lastControlledVehicle?.Id ?? "none"}\" current=\"{vehicle?.Id ?? "none"}\" state={_guidance?.CurrentState}");
                 _lastControlledVehicle = vehicle;
                 _vehicleObserved = true;
@@ -287,8 +317,29 @@ namespace KITN
             _missionClock.Stop();
             SaveUiLayout(true);
             _flightDisplay.CancelPlanning();
+            _planner.Dispose();
+            _rendezvous.Stop();
+            _rcs.Restore();
             _window.Dispose();
             Diag.Shutdown();
+        }
+
+        private void UpdateRcs(Vehicle vehicle)
+        {
+            try
+            {
+                _rcs.Update(vehicle, _guidance.IsActive || _landing.IsActive || _planner.IsExecuting || _rendezvous.IsActive,
+                    (_uiLayout?.AllowRcs ?? true) && !_planner.IsWarping && !_planner.IsCoasting, _planner.IsExecuting, _rendezvous.IsActive);
+            }
+            catch (Exception ex)
+            {
+                Diag.EveryError("rcs_control", 5, "CONTROL", ex, "Applying RCS preferences failed");
+                if (_guidance.IsActive) _guidance.Abort(vehicle, "rcs_control_exception");
+                if (_landing.IsActive) _landing.Abort(vehicle, "rcs_control_exception", "landing.failed");
+                if (_planner.IsExecuting) _planner.HandleAction("transfer_stop", vehicle, false);
+                _rendezvous.Stop();
+                _rcs.Restore();
+            }
         }
     }
 }
