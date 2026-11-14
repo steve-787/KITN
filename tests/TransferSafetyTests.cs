@@ -34,6 +34,11 @@ internal static class TransferSafetyTests
         Check(TransferSafety.ArrivalError(90000, 6371000, 6380000, 6471000) == "transfer.arrival_atmosphere", "Atmospheric orbit accepted");
         Check(TransferSafety.ArrivalError(101000, 6371000, 6380000, 6471000) == null, "Orbit above atmosphere rejected");
         Check(TransferSafety.ArrivalError(-1, moon, peak, 0) != null, "Negative arrival altitude accepted");
+        Check(TransferSafety.ImprovedArrivalAltitude(5000, moon, peak, 0) == 20785, "Improved airless arrival does not clear terrain with a safety margin");
+        Check(TransferSafety.ImprovedArrivalAltitude(90000, 6371000, 6380000, 6471000) == 110000, "Improved arrival does not clear atmosphere");
+        Check(TransferSafety.ImprovedArrivalAltitude(100000, moon, peak, 0, 5000) == 115785, "Measured finite-burn periapsis shortfall is ignored");
+        Check(TransferSafety.ImprovedArrivalAltitude(200000, moon, peak, 0, 150000) == 200000, "Safe requested altitude is needlessly changed");
+        Check(TransferSafety.ImprovedArrivalAltitude(double.NaN, moon, peak, 0) == 100000, "Invalid requested altitude cannot recover");
         Check(TransferSafety.NearbyAltitude(300e6, 80e6, moon, 66e6, false), "Altitude does not switch before lunar SOI");
         Check(!TransferSafety.NearbyAltitude(200000, 384e6, moon, 66e6, false), "LEO height switches to distant Moon");
         Check(!TransferSafety.NearbyAltitude(800e6, 140e6, moon, 66e6, false), "Altitude switches to distant body outside approach region");

@@ -12,17 +12,24 @@
     <Compile Include="FlightDisplayTests.cs" />
     <Compile Include="MissionClockTests.cs" />
     <Compile Include="LandingTests.cs" />
+    <Compile Include="LandingSettingsTests.cs" />
     <Compile Include="TransferTests.cs" />
+    <Compile Include="TransferOptimizationTests.cs" />
     <Compile Include="TransferSafetyTests.cs" />
     <Compile Include="../KITN/TransferSafety.cs" Link="TransferSafety.cs" />
     <Compile Include="DockingTests.cs" />
     <Compile Include="../KITN/DockingMath.cs" Link="DockingMath.cs" />
     <Compile Include="../KITN/TransferMath.cs" Link="TransferMath.cs" />
+    <Compile Include="../KITN/TransferMinimumSearch.cs" Link="TransferMinimumSearch.cs" />
+    <Compile Include="../KITN/TransferOberth.cs" Link="TransferOberth.cs" />
+    <Compile Include="../KITN/TransferGravityAssist.cs" Link="TransferGravityAssist.cs" />
+    <Compile Include="../KITN/TransferCoast.cs" Link="TransferCoast.cs" />
     <Compile Include="../KITN/TransferLambert.cs" Link="TransferLambert.cs" />
     <Compile Include="../KITN/TransferPlotData.cs" Link="TransferPlotData.cs" />
     <Compile Include="FlightPresetTests.cs" />
     <Compile Include="UiLayoutTests.cs" />
     <Compile Include="UiExperienceTests.cs" />
+    <Compile Include="../KITN/FlightUiVisibility.cs" Link="FlightUiVisibility.cs" />
     <Compile Include="../KITN/WindowAlignment.cs" Link="WindowAlignment.cs" />
     <Compile Include="AdaptivePlanningTests.cs" />
     <Compile Include="AdaptiveFlightSimulation.cs" />
@@ -32,10 +39,12 @@
     <Compile Include="../KITN/Localization.cs" Link="Localization.cs" />
     <Compile Include="../KITN/MissionClock.cs" Link="MissionClock.cs" />
     <Compile Include="../KITN/LandingMath.cs" Link="LandingMath.cs" />
+    <Compile Include="../KITN/LandingSettings.cs" Link="LandingSettings.cs" />
     <Compile Include="../KITN/LandingTelemetry.cs" Link="LandingTelemetry.cs" />
     <Compile Include="../KITN/FlightTrack.cs" Link="FlightTrack.cs" />
     <Compile Include="../KITN/RoutePrediction.cs" Link="RoutePrediction.cs" />
     <Compile Include="../KITN/AdaptiveFlightPlanner.cs" Link="AdaptiveFlightPlanner.cs" />
+    <Compile Include="../KITN/FlightPreviewCache.cs" Link="FlightPreviewCache.cs" />
     <Compile Include="../KITN/AdaptiveAscentControl.cs" Link="AdaptiveAscentControl.cs" />
     <Compile Include="../KITN/DiagnosticFile.cs" Link="DiagnosticFile.cs" />
     <Compile Include="../KITN/TelemetryRecord.cs" Link="TelemetryRecord.cs" />
@@ -47,5 +56,6 @@
     <Compile Include="../KITN/ThrottleActuator.cs" Link="ThrottleActuator.cs" />
     <Compile Include="../KITN/InsertionAttitudeGate.cs" Link="InsertionAttitudeGate.cs" />
     <None Include="Fixtures/insertion-20261112.csv" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures/recorded-ascent-20261113.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -13,6 +13,7 @@ namespace KITN
         public readonly List<LandingPad> Pads = new List<LandingPad>();
         public int SelectedPadIndex;
         public bool AutoWarp = true;
+        public LandingSettings Settings = new LandingSettings();
         public bool CanStart { get; private set; }
         public string UnavailableReason { get; private set; } = "landing.require_vehicle";
         public double AvailableDeltaV { get; private set; }
@@ -81,6 +82,7 @@ namespace KITN
             }
             CanStart = false;
             AvailableDeltaV = 0;
+            if (Settings?.IsValid != true) { UnavailableReason = "landing.invalid_settings"; return; }
             if (vehicle == null) { UnavailableReason = "landing.require_vehicle"; return; }
             if (!IsEarth(body)) { UnavailableReason = "landing.require_earth"; return; }
             if (vehicle.FlightComputer == null || !vehicle.HasControlModule || ManualInputs == null)
@@ -102,7 +104,7 @@ namespace KITN
             { UnavailableReason = "landing.require_engines"; return; }
             if (!_propulsion.FuelValid || AvailableDeltaV < 350)
             { UnavailableReason = "landing.require_fuel"; return; }
-            if (_propulsion.Thrust / Math.Max(1, vehicle.TotalMass) < ((IParentBody)body).Mu / (body.MeanRadius * body.MeanRadius) * 1.15)
+            if (_propulsion.Thrust / Math.Max(1, vehicle.TotalMass) < ((IParentBody)body).Mu / (body.MeanRadius * body.MeanRadius) * 1.03)
             { UnavailableReason = "landing.require_thrust"; return; }
             UnavailableReason = "landing.ready"; CanStart = true;
         }
@@ -118,6 +120,9 @@ namespace KITN
             _target = Pads[Math.Clamp(SelectedPadIndex, 0, Pads.Count - 1)];
             _target.ResolveSurface(_body);
             _model = CreateModel(_body, vehicle, _propulsion);
+            _model.Settings = Settings.Copy(); _model.DragArea *= Settings.DragAreaScale;
+            _model.AttitudeResponseSeconds = Math.Clamp(Math.Max(vehicle.FlightComputer.ConservativeFlipTime,
+                90 / Settings.MaximumTurnRateDegS) * 1.2, Settings.TerminalHorizonSeconds, 90);
             _activeVehicle = vehicle; _plan = null;
             ClearFlightData();
             _started = _lastTime = time; _lastPrediction = double.NegativeInfinity; _lastVelocityTime = double.NaN;
@@ -182,7 +187,7 @@ namespace KITN
                 }
                 if (!_propulsion.FuelValid || !_propulsion.Restartable || _propulsion.UsableFuel < 0.01)
                 { Abort(vehicle, "usable_landing_propellant_exhausted", "landing.fuel_exhausted"); return; }
-                if (time - _started > 93000) { Abort(vehicle, "return_timed_out", "landing.failed"); return; }
+                if (time - _started > _model.Settings.SearchWindowHours * 3600 + 10000) { Abort(vehicle, "return_timed_out", "landing.failed"); return; }
                 if (State == LandingState.Planning)
                 {
                     SetThrottle(vehicle, 0, dt, false);
@@ -249,7 +254,8 @@ namespace KITN
                 { Abort(vehicle, "insufficient_landing_thrust", "landing.require_thrust"); return; }
                 double stop = VerticalSpeed < 0 ? VerticalSpeed * VerticalSpeed / (2 * Math.Max(0.1, acceleration - gravity)) : 0;
                 double alignMargin = Math.Clamp(vehicle.FlightComputer.ConservativeFlipTime * 2, 8, 30) * Math.Max(0, -VerticalSpeed);
-                if (State == LandingState.Entry && Clearance < Math.Max(7000, stop * 1.5 + alignMargin + 1000))
+                if (State == LandingState.Entry && Clearance < Math.Max(_model.Settings.HandoverHeightM + 2000,
+                    stop * _model.Settings.BrakingMargin + alignMargin + 1000))
                     Transition(LandingState.PoweredDescent, time, "braking_and_alignment_height_reached", "landing.descent");
                 if (State == LandingState.Entry)
                 {
@@ -269,7 +275,7 @@ namespace KITN
                 StoppingHeight = command.StoppingHeight; DesiredVerticalSpeed = command.DesiredVerticalSpeed;
                 AlignmentHeight = command.AlignmentHeight; TimeToTouchdown = command.TimeToGo;
                 _commandAcceleration = command.Acceleration;
-                Point(vehicle, command.Acceleration, 8);
+                Point(vehicle, command.Acceleration, _model.Settings.MaximumTurnRateDegS);
                 double requested = command.Acceleration.Length / acceleration;
                 if (PointingError > 45) requested = Math.Min(requested, _propulsion.MinimumThrottle);
                 SetThrottle(vehicle, requested, dt, PointingError > 3);
@@ -305,15 +311,18 @@ namespace KITN
             if (PadDistance < _target.FootprintRadius)
                 Clearance = position.Length - (_model.Radius + _target.Altitude) - bottom;
             TerrainContact = vehicle.HasPhysicsBubble && vehicle.TryGetTerrainContactNormalBody(out _);
-            if (vehicle.HasPhysicsBubble && _lastVelocityTime < time && dt > 0 && dt < 0.5 && CommandedThrottle < 0.001
+            if (_model.Settings.AdaptiveDrag && vehicle.HasPhysicsBubble && _lastVelocityTime < time && dt > 0 && dt < 0.5 && CommandedThrottle < 0.001
                 && vehicle.ComputeLiveThrust() < 1 && relative.Length > 100)
             {
                 double density = vehicle.PhysicsEnvironment.AtmosphericDensity;
                 LandingVector gravity = position * (-_model.Mu / Math.Pow(position.Length, 3));
                 double deceleration = -LandingVector.Dot((velocity - _lastVelocity) / Math.Max(1e-6, time - _lastVelocityTime) - gravity, relative.Unit);
                 double area = 2 * deceleration * vehicle.TotalMass / Math.Max(1e-12, density * relative.LengthSquared);
-                if (density > 1e-5 && double.IsFinite(_lastVelocityTime) && area > _model.DragArea / 5 && area < _model.DragArea * 5)
-                    _model.DragArea = _model.DragArea * 0.95 + area * 0.05;
+                if (density > 1e-5 && double.IsFinite(_lastVelocityTime) && double.IsFinite(area) && area > 0 && area < 1e7)
+                {
+                    double measuredArea = area * _model.Settings.DragAreaScale;
+                    _model.DragArea = _model.DragArea * 0.9 + Math.Clamp(measuredArea, _model.DragArea * 0.5, _model.DragArea * 2) * 0.1;
+                }
             }
             _lastVelocity = velocity; _lastVelocityTime = time;
         }
@@ -335,14 +344,14 @@ namespace KITN
         {
             _lastPrediction = time;
             _prediction = LandingMath.Predict(_model, LandingReturnPlanner.Vector(vehicle.GetPositionCci()),
-                LandingReturnPlanner.Vector(vehicle.GetVelocityCci()), _body.MeanRadius + _target.Altitude + LandingMath.HandoverHeight);
+                LandingReturnPlanner.Vector(vehicle.GetVelocityCci()), _body.MeanRadius + _target.Altitude + _model.Settings.HandoverHeightM);
             UpdateMiss(time);
         }
 
         private void UpdateMiss(double time)
         {
             PredictedMiss = _prediction.Valid ? (_prediction.Position - PadPosition(time + _prediction.Seconds).Unit
-                * (_body.MeanRadius + _target.Altitude + LandingMath.HandoverHeight)).Length : double.NaN;
+                * (_body.MeanRadius + _target.Altitude + _model.Settings.HandoverHeightM)).Length : double.NaN;
         }
 
         private void VelocityBurn(Vehicle vehicle, LandingVector target, double dt, double maximumThrottle = 1)

@@ -53,6 +53,10 @@ $noticesSource = Join-Path $projDir "bin\Release\net9.0\THIRD_PARTY_NOTICES.md"
 if (Test-Path -LiteralPath $noticesSource) {
     Copy-Item -LiteralPath $noticesSource -Destination (Join-Path $targetModDir "THIRD_PARTY_NOTICES.md") -Force
 }
+$iconsLicenseSource = Join-Path $projDir "Assets\Icons\LICENSE"
+if (Test-Path -LiteralPath $iconsLicenseSource) {
+    Copy-Item -LiteralPath $iconsLicenseSource -Destination (Join-Path $targetModDir "LUCIDE_LICENSE") -Force
+}
 Write-Host "KITN.dll, Debug-Symbole und mod.toml erfolgreich kopiert." -ForegroundColor Green
 
 # 3. In manifest.toml eintragen

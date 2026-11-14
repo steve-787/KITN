@@ -32,6 +32,34 @@ internal static class AdaptivePlanningTests
                 && plan.Route.RemainingDeltaV > 0 && requested.Matches(new LaunchProfile()), "Planner loses its feasible route, fuel reserve or requested settings");
         }
     }
+    public static void PreviewCache()
+    {
+        RocketFlightModel OrbitRocket(double mass = 52882.109, double thrust = 955522.375) => new RocketFlightModel
+        {
+            Mu = Mu, BodyRadius = Planet, Altitude = 200148.9, TangentialSpeed = 7357.297,
+            RadialSpeed = 0.7, RotationSpeed = 400, StableOrbit = true,
+            OrbitPeriapsis = Planet + 197531.552, OrbitApoapsis = Planet + 200281.261, OrbitInclination = 0.48,
+            Phases = new[] { new RouteBurnPhase(thrust, 222.897, mass, 200.883, true) }
+        };
+        var baseline = OrbitRocket();
+        for (int sample = 1; sample < 60; sample++)
+        {
+            var drift = OrbitRocket(52882.109 - sample * 0.5);
+            drift.Altitude += sample * 35; drift.TangentialSpeed -= sample * 3; drift.RadialSpeed = Math.Sin(sample);
+            Check(FlightPreviewCache.Equivalent(baseline, drift, false), "Coasting orbital phase or small RCS consumption repeatedly invalidates the preview");
+        }
+        Check(!FlightPreviewCache.Equivalent(baseline, OrbitRocket(52700), false), "Accumulated fuel/mass change is ignored");
+        Check(!FlightPreviewCache.Equivalent(baseline, OrbitRocket(thrust: 750000), false), "A rebuild with unchanged part count and mass keeps an old thrust model");
+        var changedOrbit = OrbitRocket(); changedOrbit.OrbitPeriapsis -= 2000;
+        Check(!FlightPreviewCache.Equivalent(baseline, changedOrbit, false), "A maneuver's orbital change is ignored");
+        var lostControl = OrbitRocket(); lostControl.HasSteering = false;
+        Check(!FlightPreviewCache.Equivalent(baseline, lostControl, false), "Loss of steering does not invalidate flight planning");
+        Check(!FlightPreviewCache.Equivalent(baseline, OrbitRocket(52880), true), "Launch verification accepts a changed rocket snapshot");
+        var ground = LoggedRocket(); var jitter = LoggedRocket(); jitter.Altitude += 0.03; jitter.RadialSpeed += 0.001;
+        Check(FlightPreviewCache.Equivalent(ground, jitter, true), "Ground sensor jitter unnecessarily cancels launch verification");
+        jitter.Altitude += 100;
+        Check(!FlightPreviewCache.Equivalent(ground, jitter, false), "Meaningful suborbital motion does not refresh the flight route");
+    }
     public static void FailureReasons()
     {
         var settings = FlightPlanSettings.Capture(new LaunchProfile());

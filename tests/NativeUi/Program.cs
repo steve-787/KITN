@@ -21,6 +21,7 @@ internal static class Program
     private static string Output;
     private static string Focus;
     private static string MainAction, TimerAction;
+    private static bool CaptureOnly;
 
     private static void Main(string[] args)
     {
@@ -31,9 +32,24 @@ internal static class Program
                 : Path.Combine(Game, name.Name + ".dll");
             return File.Exists(path) ? context.LoadFromAssemblyPath(path) : null;
         };
-        Output = Path.GetFullPath(args.Length > 0 ? args[0] : "artifacts/ui/redesign");
+        if (args.Length > 0 && args[0] == "--inspect-ui-api")
+        {
+            InspectUiApi();
+            return;
+        }
+        CaptureOnly = args.Length > 0 && args[0] == "--capture-ui";
+        Output = Path.GetFullPath(args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "artifacts/ui/redesign");
         Directory.CreateDirectory(Output);
         Run();
+    }
+
+    private static void InspectUiApi()
+    {
+        foreach (var type in new[] { typeof(UniverseTime), typeof(ConsoleWidgets) })
+        {
+            Console.WriteLine(type.FullName);
+            foreach (var member in type.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly)) Console.WriteLine("  " + member);
+        }
     }
 
     private static object New(string type, params object[] args) => Activator.CreateInstance(Mod.GetType("KITN." + type, true), args);
@@ -82,6 +98,10 @@ internal static class Program
         Set(predicted, "Distances", new double[] { 0, 10, 50, 120, 300, 600, 900, 1200 });
         Set(predicted, "Altitudes", new double[] { 0, 25, 60, 100, 150, 180, 197, 200 });
         Set(predicted, "MessageKey", "preview.complete");
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Save("launcher.png", 800, 670, 12, 12);
+        LauncherNavigationChecks();
+        Set(Window, "_homeOpen", false);
 
         foreach (string theme in new[] { "Retro", "Modern" })
         {
@@ -101,10 +121,11 @@ internal static class Program
             Set(Window, "_settingsOpen", false);
             Console.WriteLine("PASS native all five tabs and general Settings with " + theme + " theme");
         }
+        if (CaptureOnly) { PlannerChecks(); return; }
         Set(Window, "_settingsOpen", true);
         Call(Store, "SetTheme", Enum.Parse(Mod.GetType("KITN.UiTheme"), "Retro"), Environment.TickCount64);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(700, 177, "autopilot");
+        Click(700, 260, "autopilot");
         for (int frame = 0; frame < 2; frame++) Frame();
         Save("theme-dropdown.png", 800, 670, 12, 12);
         io.AddKeyEvent(ImGuiKey.DownArrow, true); Frame();
@@ -114,17 +135,18 @@ internal static class Program
         Check(Store.GetType().GetProperty("Theme").GetValue(Store).ToString() == "Modern", "Theme dropdown cannot select Modern with keyboard navigation");
         Check(Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "A dropdown theme selection was not persisted");
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(737, 313, "autopilot");
+        Click(737, 364, "autopilot");
         Check(!(bool)Store.GetType().GetProperty("AllowRcs").GetValue(Store), "The general settings RCS toggle cannot be switched off");
         Check(Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "The RCS toggle was not saved");
         string settingsPath = (string)Store.GetType().GetField("_path", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Store);
         var reloadedSettings = New("UiLayoutStore", settingsPath); Call(reloadedSettings, "Load");
         Check(!(bool)reloadedSettings.GetType().GetProperty("AllowRcs").GetValue(reloadedSettings), "The RCS toggle does not survive restart");
-        Click(737, 313, "autopilot");
+        Click(737, 364, "autopilot");
         Check((bool)Store.GetType().GetProperty("AllowRcs").GetValue(Store), "The RCS toggle cannot be enabled again");
         Console.WriteLine("PASS general settings RCS toggle is clickable and persists across restart");
         Set(Window, "_settingsOpen", false);
         Console.WriteLine("PASS native theme dropdown keyboard selection applies to the visible instruments and persists");
+        WidgetSettingsChecks();
         Call(Clock, "BeginCountdown", 10, 0.0);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Save("countdown-minimum.png", 336, 264, 820, 12);
@@ -133,9 +155,9 @@ internal static class Program
             "Minimum instrument geometry was not exercised");
         Check(Click(893, 253, "mission_time") == "cancel_countdown", "Compact instrument countdown cancel cannot be clicked");
         Console.WriteLine("PASS native minimum window sizes with reachable countdown controls");
-        Check(Click(514, 111, "autopilot") == null && (bool)Window.GetType().GetField("_settingsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window),
+        Check(Click(547, 70, "autopilot") == null && (bool)Window.GetType().GetField("_settingsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window),
             "Settings toolbar button cannot open the general page");
-        Check(Click(95, 66, "autopilot") == "cancel_countdown", "Countdown cannot be cancelled from general Settings");
+        Check(Click(95, 111, "autopilot") == "cancel_countdown", "Countdown cannot be cancelled from general Settings");
         Set(Window, "_settingsOpen", false);
         Console.WriteLine("PASS native toolbar opens Settings and preserves countdown cancellation there");
         Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { "de-DE" });
@@ -145,9 +167,9 @@ internal static class Program
         Set(Window, "_settingsOpen", true);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Save("settings-german-minimum.png", 576, 416, 12, 12);
-        Click(495, 313, "autopilot");
+        Click(495, 364, "autopilot");
         Check(!(bool)Store.GetType().GetProperty("AllowRcs").GetValue(Store), "RCS toggle is unreachable at minimum German window size");
-        Click(495, 313, "autopilot");
+        Click(495, 364, "autopilot");
         Set(Window, "_settingsOpen", false);
         Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { "en-US" });
         Console.WriteLine("PASS native German general Settings and minimum main toolbar layout");
@@ -188,6 +210,68 @@ internal static class Program
         ImGui.DestroyContext();
     }
 
+    private static void LauncherNavigationChecks()
+    {
+        bool Home() => (bool)Window.GetType().GetField("_homeOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window);
+        bool SettingsOpen() => (bool)Window.GetType().GetField("_settingsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window);
+        Check(Home(), "The mod opens a page instead of its launcher");
+        Click(140, 200, "autopilot");
+        Check(!Home() && !SettingsOpen() && (int)Window.GetType().GetField("_tab", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window) == 0,
+            "Launcher flight tile cannot open its app page");
+        for (int frame = 0; frame < 45; frame++) Frame();
+        Save("navigation-flight.png", 800, 670, 12, 12);
+        Click(53, 70, "autopilot");
+        Check(Home(), "Home icon cannot return to the launcher");
+        Click(650, 315, "autopilot");
+        Check(!Home() && (int)Window.GetType().GetField("_tab", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window) == 5,
+            "Launcher maneuver tile cannot open its app page");
+        Save("navigation-transition.png", 800, 670, 12, 12);
+        for (int page = 0; page < 7; page++)
+        {
+            Click(767, 70, "autopilot");
+            Check(SettingsOpen(), "Right-aligned settings icon is unreachable");
+            for (int frame = 0; frame < 60; frame++) Frame();
+            Click(53 + 37 * (page + 1), 70, "autopilot");
+            bool diagnostics = (bool)Window.GetType().GetField("_diagnosticsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window);
+            Check(page == 6 ? diagnostics : !SettingsOpen() && (int)Window.GetType().GetField("_tab", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window) == page,
+                "Compact navigation cannot select mode " + page);
+        }
+        ImGui.GetIO().AddMousePosEvent(53, 70);
+        for (int frame = 0; frame < 45; frame++) Frame();
+        Check(HasDrawList("Tooltip"), "Icon navigation does not reveal a hover tooltip");
+        Save("navigation-tooltip.png", 800, 670, 12, 12);
+        ImGui.GetIO().AddMousePosEvent(-1000, -1000);
+        Call(Window, "OnVisibilityChanged", false); Frame();
+        Check(Home() && !SettingsOpen(), "Reopening the mod does not return to its launcher");
+        for (int frame = 0; frame < 3; frame++) Frame(true, true);
+        Save("launcher-minimum.png", 580, 420, 12, 12);
+        Click(400, 320, "autopilot");
+        Check(!Home(), "Launcher tiles cannot be selected at the minimum width");
+        Set(Window, "_settingsOpen", false); Set(Window, "_diagnosticsOpen", false); Set(Window, "_homeOpen", false); Set(Window, "_tab", 0);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Console.WriteLine("PASS launcher tiles, all compact mode icons, Home, settings, hover tooltips and reopen behavior");
+    }
+
+    private static void WidgetSettingsChecks()
+    {
+        Set(Window, "_settingsOpen", true); Set(Window, "_diagnosticsOpen", false);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Check(!(bool)Store.GetType().GetProperty("MissionTimeOpen").GetValue(Store), "Legacy instrument state defaults unexpectedly to open");
+        Click(737, 206, "autopilot");
+        Check((bool)Store.GetType().GetProperty("MissionTimeOpen").GetValue(Store), "Widget enable toggle is unreachable");
+        Click(737, 290, "autopilot");
+        Check((bool)Store.GetType().GetProperty("AutoHideInstrumentFrame").GetValue(Store), "Widget transparency toggle is unreachable");
+        Check(Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "Widget settings do not save");
+        string path = (string)Store.GetType().GetField("_path", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Store);
+        var restart = New("UiLayoutStore", path); Call(restart, "Load");
+        Check((bool)restart.GetType().GetProperty("MissionTimeOpen").GetValue(restart) && (bool)restart.GetType().GetProperty("AutoHideInstrumentFrame").GetValue(restart),
+            "Clicked widget settings do not survive restart");
+        Click(737, 206, "autopilot"); Click(737, 290, "autopilot");
+        Check(!(bool)Store.GetType().GetProperty("MissionTimeOpen").GetValue(Store), "Widget cannot be disabled again");
+        Set(Window, "_settingsOpen", false);
+        Console.WriteLine("PASS widget visibility and transparency are independently clickable and saved across restart");
+    }
+
     private static void RendezvousChecks()
     {
         var controller = New("RendezvousController");
@@ -213,31 +297,31 @@ internal static class Program
         Set(Window, "Rendezvous", controller); Set(Window, "_tab", 3);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("rendezvous.png", 800, 670, 12, 12);
-        Check(Click(85, 110, "autopilot") == "rendezvous_dock", "Autodock does not reach the physics action queue");
+        Check(Click(85, 160, "autopilot") == "rendezvous_dock", "Autodock does not reach the physics action queue");
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Save("rendezvous-minimum.png", 580, 420, 12, 12);
-        Check(Click(85, 110, "autopilot") == "rendezvous_dock", "Autodock is unreachable at minimum window size");
-        Check(Click(100, 280, "autopilot") == "rendezvous_match", "Match velocity is unreachable at minimum window size");
+        Check(Click(85, 160, "autopilot") == "rendezvous_dock", "Autodock is unreachable at minimum window size");
+        Check(Click(100, 292, "autopilot") == "rendezvous_match", "Match velocity is unreachable at minimum window size");
         Set(controller, "CanDock", false);
-        Check(Click(85, 110, "autopilot") == null, "Unavailable docking still starts from the toolbar");
+        Check(Click(85, 160, "autopilot") == null, "Unavailable docking still starts from the toolbar");
         Set(controller, "CanDock", true);
         Set(controller, "_activeVehicle", station);
-        Check(Click(85, 110, "autopilot") == "rendezvous_stop", "Active docking cannot be stopped");
+        Check(Click(85, 160, "autopilot") == "rendezvous_stop", "Active docking cannot be stopped");
         Set(Window, "_settingsOpen", true);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Check(Click(85, 66, "autopilot") == "rendezvous_stop", "Settings hide the active docking stop control");
+        Check(Click(85, 111, "autopilot") == "rendezvous_stop", "Settings hide the active docking stop control");
         Set(controller, "_activeVehicle", null); Set(Window, "_tab", 0);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("settings-diagnostics-entry.png", 800, 670, 12, 12);
-        Click(100, 372, "autopilot");
+        Click(100, 411, "autopilot");
         Check((bool)Window.GetType().GetField("_diagnosticsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window), "Settings cannot open the diagnostics page");
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("diagnostics.png", 800, 670, 12, 12);
-        Check(Click(675, 66, "autopilot") == null && !(bool)Window.GetType().GetField("_diagnosticsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window),
+        Check(Click(767, 70, "autopilot") == null && !(bool)Window.GetType().GetField("_diagnosticsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window),
             "Diagnostics cannot return to settings");
         Set(Window, "_settingsOpen", false); Set(Window, "_tab", 3);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(710, 185, "autopilot");
+        Click(710, 202, "autopilot");
         var io = ImGui.GetIO();
         io.AddKeyEvent(ImGuiKey.DownArrow, true); Frame(); io.AddKeyEvent(ImGuiKey.DownArrow, false); Frame();
         io.AddKeyEvent(ImGuiKey.Enter, true); Frame(); io.AddKeyEvent(ImGuiKey.Enter, false); Frame();
@@ -678,6 +762,382 @@ internal static class Program
         Console.WriteLine("PASS native capture recovers a saved or manual encounter before SOI entry");
         ContinuousCaptureChecks(vehicle, earth, moon, incoming);
         NativeRouteValidationChecks(vehicle, earth, moon, incoming, parking);
+        RecordedTransferChecks(earth);
+        NativeGravityAssistChecks();
+    }
+
+    private static void RecordedTransferChecks(IParentBody earth)
+    {
+        const double now = 5346.943808178;
+        var parking = Orbit.CreateFromStateCci(earth, new UniverseTime(now),
+            new double3(-1784936.5264293605, -5682592.366657389, 2775400.6390009737),
+            new double3(7494.60375282298, -1913.933900767815, 902.4384571692448), byte4.Zero);
+        const double radians = Math.PI / 180;
+        doubleQuat eclipticToCci = Celestial.CreateOrb2Cci(-0.363633 * radians, 23.441522 * radians);
+        var orientation = doubleQuat.Concatenate(Orbit.CreateOrb2ParentCci(343.9586928342719 * radians, 5.027765739305488 * radians, 90.95632163367938 * radians), eclipticToCci);
+        Orbit.GetPlaneAnglesFromOrb2Reference(orientation, out double node, out double inclination, out double argument);
+        const double axis = 380863334.9807188, eccentricity = 0.06734146418596218;
+        var moon = Orbit.Create(earth, new OrbitData(new UniverseTime(442332.8562855744), earth.Mass,
+            axis * (1 - eccentricity), eccentricity, inclination, node, argument), byte4.Zero);
+        object Vector(double3 value) => New("LandingVector", value.X, value.Y, value.Z);
+        object Snapshot(Orbit orbit)
+        {
+            var state = orbit.GetStateVectorsAt(new UniverseTime(now));
+            return New("TransferOrbit", orbit.Mu, now, Vector(state.PositionCci), Vector(state.VelocityCci));
+        }
+        var request = New("TransferRequest");
+        Set(request, "Parking", Snapshot(parking)); Set(request, "Target", Snapshot(moon));
+        Set(request, "Now", now); Set(request, "CentralMu", earth.Mu); Set(request, "TargetMu", 4.9048695e12);
+        Set(request, "TargetRadius", 1737100.0); Set(request, "PeriapsisAltitude", 100000.0);
+        Set(request, "TargetSoi", 66e6);
+        Set(request, "DepartureSafetyRadius", earth.GetNearSurfaceRadius()); Set(request, "CentralSoi", earth.SphereOfInfluence);
+        Set(request, "IncludeCapture", true);
+        double transferAxis = (parking.SemiMajorAxis + moon.SemiMajorAxis) / 2;
+        double hohmann = Math.PI * Math.Sqrt(transferAxis * transferAxis * transferAxis / earth.Mu);
+        Set(request, "Earliest", now + 300); Set(request, "Latest", now + 300 + parking.Period * 2);
+        Set(request, "MinimumDuration", hohmann * 0.25); Set(request, "MaximumDuration", hohmann * 2);
+        var grid = Mod.GetType("KITN.TransferMath").GetMethod("Search").Invoke(null, new[] { request, (object)default(System.Threading.CancellationToken), null });
+        var originalIndex = (int)grid.GetType().GetMethod("Best").Invoke(grid, new object[] { true, double.NegativeInfinity, null });
+        var original = ((Array)grid.GetType().GetField("Cells").GetValue(grid)).GetValue(originalIndex);
+        var phases = new[] { new FiniteBurnPhase(955522.3125, 222.89703369140625, 52813.765625, 49474.73046875 / 222.89703369140625) };
+        Mod.GetType("KITN.TransferBurnRefiner").GetMethod("Attach").Invoke(null, new object[] { request, phases });
+        grid = Mod.GetType("KITN.TransferMath").GetMethod("Search").Invoke(null, new[] { request, (object)default(System.Threading.CancellationToken), null });
+        var correctedIndex = (int)grid.GetType().GetMethod("Best").Invoke(grid, new object[] { true, double.NegativeInfinity, null });
+        Check(correctedIndex >= 0, "Finite burn refinement eliminates all recorded parking orbit routes");
+        var corrected = ((Array)grid.GetType().GetField("Cells").GetValue(grid)).GetValue(correctedIndex);
+        Set(request, "Oberth", true);
+        var finiteOverviewRequest = Call(request, "CopyForPorkchop");
+        Mod.GetType("KITN.TransferBurnRefiner").GetMethod("Attach").Invoke(null, new object[] { finiteOverviewRequest, phases });
+        var periapsisGrid = Mod.GetType("KITN.TransferMath").GetMethod("SearchWithPorkchop").Invoke(null,
+            new[] { request, finiteOverviewRequest, (object)default(System.Threading.CancellationToken), null });
+        var finiteOverview = periapsisGrid.GetType().GetField("PorkchopGrid").GetValue(periapsisGrid);
+        var finiteCells = (Array)finiteOverview.GetType().GetField("Cells").GetValue(finiteOverview);
+        var normalFiniteCells = (Array)grid.GetType().GetField("Cells").GetValue(grid);
+        for (int index = 0; index < finiteCells.Length; index++)
+        {
+            var a = finiteCells.GetValue(index); var b = normalFiniteCells.GetValue(index);
+            bool valid = (bool)a.GetType().GetField("Valid").GetValue(a);
+            Check(valid == (bool)b.GetType().GetField("Valid").GetValue(b)
+                && (!valid || Math.Abs((double)Call(a, "Cost", true) - (double)Call(b, "Cost", true)) < 1e-6),
+                "Cached finite-burn overview differs from recalculating Porkchop with the rocket's actual engine phases");
+        }
+        var periapsisRoute = Call(periapsisGrid, "Pick", true, false, double.PositiveInfinity, now + 30, null);
+        Check((bool)periapsisRoute.GetType().GetField("Valid").GetValue(periapsisRoute), "Recorded finite moon transfer has no Earth-periapsis route");
+        double periapsisDeparture = (double)periapsisRoute.GetType().GetField("Departure").GetValue(periapsisRoute);
+        Check(Math.Abs(parking.GetStateVectorsAt(new UniverseTime(periapsisDeparture)).PositionCci.Length() - parking.Periapsis) < 1,
+            "Finite Oberth node is placed away from Earth's actual periapsis");
+        Set(request, "Oberth", false);
+        Console.WriteLine("PASS recorded finite moon-transfer Oberth search uses native Earth periapsis epochs");
+        var optimized = Call(grid, "Pick", true, false, double.PositiveInfinity, now + 30, null);
+        Check((double)Call(optimized, "Cost", true) <= (double)Call(corrected, "Cost", true), "Native minimum selection ignores refined candidates");
+        var displayPlanner = New("ManeuverPlanner");
+        Set(displayPlanner, "Grid", grid); Set(displayPlanner, "Now", now); Set(displayPlanner, "OriginName", "Earth");
+        Set(displayPlanner, "UnavailableReason", null); Set(Window, "Planner", displayPlanner); Set(Window, "_tab", 5);
+        Call(displayPlanner, "SelectBest", false);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Save("maneuver-continuous-recorded-orbit.png", 800, 670, 12, 12);
+        Set(Window, "Planner", null); Set(Window, "_tab", 0);
+        var cells = new[] { original, corrected };
+        var destination = (TerrestrialBody)RuntimeHelpers.GetUninitializedObject(typeof(TerrestrialBody));
+        typeof(Celestial).GetField("_meanRadius", BindingFlags.Public | BindingFlags.Instance).SetValue(destination, 1737100.0);
+        Set(destination, "Mass", 4.9048695e12 / 6.6743e-11); Set(destination, "SphereOfInfluence", 66e6);
+        foreach (var cell in cells)
+        {
+            double departure = (double)cell.GetType().GetField("Departure").GetValue(cell);
+            var dv = cell.GetType().GetField("DeltaV").GetValue(cell);
+            double3 delta = new double3((double)dv.GetType().GetField("X").GetValue(dv), (double)dv.GetType().GetField("Y").GetValue(dv), (double)dv.GetType().GetField("Z").GetValue(dv));
+            var time = new UniverseTime(departure);
+            var state = parking.GetStateVectorsAt(time);
+            var impulsive = Orbit.CreateFromStateCci(earth, time, state.PositionCci, state.VelocityCci + delta, byte4.Zero);
+            var arc = FiniteBurnPredictor.Predict(parking, time, OrbitalTransfers.CciToVlf(parking, time, delta),
+                phases);
+            var finite = Orbit.CreateFromStateCci(earth, arc.Cutoff, arc.PositionCci, arc.VelocityCci, byte4.Zero);
+            double arrival = departure + (double)cell.GetType().GetField("Duration").GetValue(cell);
+            var end = finite.GetStateVectorsAt(new UniverseTime(arrival));
+            var moonEnd = moon.GetStateVectorsAt(new UniverseTime(arrival));
+            Console.WriteLine($"  recorded transfer: departure={departure:F1}s dv={delta.Length():F1}m/s impulse_pe={impulsive.Periapsis - earth.MeanRadius:F0}m finite_pe={finite.Periapsis - earth.MeanRadius:F0}m burn={(arc.Cutoff - arc.Ignition).Seconds():F1}s miss={(end.PositionCci - moonEnd.PositionCci).Length():F0}m bound={finite.IsBound()}");
+            if (ReferenceEquals(cell, corrected))
+            {
+                Check((end.PositionCci - moonEnd.PositionCci).Length() < destination.SphereOfInfluence, "Corrected finite burn still misses lunar SOI");
+                double lo = arc.Cutoff.Seconds(), hi = arrival;
+                for (int i = 0; i < 60; i++)
+                {
+                    double mid = (lo + hi) / 2;
+                    double distance = (finite.GetStateVectorsAt(new UniverseTime(mid)).PositionCci - moon.GetStateVectorsAt(new UniverseTime(mid)).PositionCci).Length();
+                    if (distance > destination.SphereOfInfluence) lo = mid; else hi = mid;
+                }
+                var shipEntry = finite.GetStateVectorsAt(new UniverseTime(hi)); var moonEntry = moon.GetStateVectorsAt(new UniverseTime(hi));
+                var encounter = Orbit.CreateFromStateCci(destination, new UniverseTime(hi), shipEntry.PositionCci - moonEntry.PositionCci,
+                    shipEntry.VelocityCci - moonEntry.VelocityCci, byte4.Zero);
+                Console.WriteLine($"  recorded native lunar arrival: periapsis={encounter.Periapsis - destination.MeanRadius:F0}m entry={hi:F1}s");
+                Check(Math.Abs(encounter.Periapsis - destination.MeanRadius - 100000) < 300,
+                    "Corrected finite burn misses the requested lunar periapsis");
+                var returnTime = finite.GetNextPeriapsisTime(arc.Cutoff);
+                Check(!returnTime.HasValue || returnTime.Value <= arc.Cutoff || returnTime.Value > new UniverseTime(hi),
+                    "Selected corrected transfer falls back before entering lunar SOI");
+            }
+        }
+        var refine = Mod.GetType("KITN.TransferBurnRefiner").GetMethod("Refine");
+        foreach (double altitude in new[] { 10000.0, 1000000.0 })
+        {
+            Set(request, "PeriapsisAltitude", altitude);
+            var route = refine.Invoke(null, new object[] { request, original, phases, default(System.Threading.CancellationToken) });
+            Check((bool)route.GetType().GetField("Valid").GetValue(route), "Finite burn cannot target a low or high lunar periapsis");
+            double departure = (double)route.GetType().GetField("Departure").GetValue(route);
+            double arrival = departure + (double)route.GetType().GetField("Duration").GetValue(route);
+            var dv = route.GetType().GetField("DeltaV").GetValue(route);
+            var delta = new double3((double)dv.GetType().GetField("X").GetValue(dv), (double)dv.GetType().GetField("Y").GetValue(dv), (double)dv.GetType().GetField("Z").GetValue(dv));
+            var time = new UniverseTime(departure);
+            var arc = FiniteBurnPredictor.Predict(parking, time, OrbitalTransfers.CciToVlf(parking, time, delta), phases);
+            var outgoing = Orbit.CreateFromStateCci(earth, arc.Cutoff, arc.PositionCci, arc.VelocityCci, byte4.Zero);
+            double lo = arc.Cutoff.Seconds(), hi = arrival;
+            for (int pass = 0; pass < 60; pass++)
+            {
+                double mid = (lo + hi) / 2;
+                if ((outgoing.GetStateVectorsAt(new UniverseTime(mid)).PositionCci - moon.GetStateVectorsAt(new UniverseTime(mid)).PositionCci).Length() > destination.SphereOfInfluence) lo = mid;
+                else hi = mid;
+            }
+            var ship = outgoing.GetStateVectorsAt(new UniverseTime(hi)); var body = moon.GetStateVectorsAt(new UniverseTime(hi));
+            var approach = Orbit.CreateFromStateCci(destination, new UniverseTime(hi), ship.PositionCci - body.PositionCci, ship.VelocityCci - body.VelocityCci, byte4.Zero);
+            Check(Math.Abs(approach.Periapsis - destination.MeanRadius - altitude) < 300, "Native lunar arrival does not match low/high requested altitude");
+        }
+        Set(request, "PeriapsisAltitude", 100000.0);
+        var weak = new[] { new FiniteBurnPhase(955522.3125, 222.89703369140625, 52813.765625, 5) };
+        var impossible = refine.Invoke(null, new object[] { request, original, weak, default(System.Threading.CancellationToken) });
+        Check(!(bool)impossible.GetType().GetField("Valid").GetValue(impossible), "Finite burn invents thrust after propellant is exhausted");
+        using var cancelled = new System.Threading.CancellationTokenSource(); cancelled.Cancel();
+        bool stopped = false;
+        try { refine.Invoke(null, new object[] { request, original, phases, cancelled.Token }); }
+        catch (TargetInvocationException ex) when (ex.InnerException is OperationCanceledException) { stopped = true; }
+        Check(stopped, "Cancelling finite burn correction does not stop the worker");
+        Set(request, "UseBestEffortFallback", true);
+        var windows = Array.CreateInstance(Mod.GetType("KITN.TransferWindowExclusion"), 1);
+        windows.SetValue(New("TransferWindowExclusion", now + 300, hohmann,
+            parking.Period * 3, hohmann * 3, true), 0);
+        Set(request, "ExcludedWindows", windows);
+        var fallbackGrid = Mod.GetType("KITN.TransferMath").GetMethod("Search").Invoke(null,
+            new[] { request, (object)default(System.Threading.CancellationToken), null });
+        int fallbackIndex = (int)fallbackGrid.GetType().GetMethod("Best").Invoke(fallbackGrid, new object[] { true, double.NegativeInfinity, null });
+        Check(fallbackIndex >= 0, "Finite burn refinement prevents the requested best-effort fallback");
+        var fallbackRoute = ((Array)fallbackGrid.GetType().GetField("Cells").GetValue(fallbackGrid)).GetValue(fallbackIndex);
+        Check((bool)fallbackRoute.GetType().GetField("BestEffort").GetValue(fallbackRoute), "Fallback route loses its best-effort flag");
+        Set(request, "DepartureSafetyRadius", parking.Apoapsis + 1000);
+        var unsafeFallback = refine.Invoke(null, new object[] { request, fallbackRoute, phases, default(System.Threading.CancellationToken) });
+        Check(!(bool)unsafeFallback.GetType().GetField("Valid").GetValue(unsafeFallback),
+            "Best-effort refinement ignores an impact during the engine burn");
+
+        var planner = New("ManeuverPlanner"); Set(planner, "Now", now);
+        var overridden = Orbit.Create(earth, new OrbitData(new UniverseTime(442332.8562855744), earth.Mass * 1.3,
+            axis * (1 - eccentricity), eccentricity, inclination, node, argument), byte4.Zero, centralMass: earth.Mass * 1.3);
+        var snapshot = planner.GetType().GetMethod("SnapshotOrbit", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(planner, new object[] { overridden });
+        Check(Math.Abs((double)snapshot.GetType().GetField("Mu").GetValue(snapshot) / overridden.Mu - 1) < 1e-12,
+            "Mod-body ephemeris discards the orbit's central-mass override");
+        object[] propagation = { now + 600000, null, null };
+        Check((bool)snapshot.GetType().GetMethod("State").Invoke(snapshot, propagation), "Overridden orbit snapshot cannot propagate");
+        var expected = overridden.GetStateVectorsAt(new UniverseTime(now + 600000));
+        var actual = propagation[1];
+        var position = new double3((double)actual.GetType().GetField("X").GetValue(actual), (double)actual.GetType().GetField("Y").GetValue(actual), (double)actual.GetType().GetField("Z").GetValue(actual));
+        Check((position - expected.PositionCci).Length() < 1, "Overridden mod-body ephemeris drifts from native orbit");
+        foreach (var velocity in new[] { new double3(0, 7600, 300), new double3(-500, 12000, 900) })
+        {
+            var native = Orbit.CreateFromStateCci(earth, new UniverseTime(0), new double3(7e6, 0, 0), velocity, byte4.Zero);
+            var coast = New("TransferCoast", earth.Mu, Vector(new double3(7e6, 0, 0)), Vector(velocity));
+            foreach (double elapsed in new[] { -1000.0, 1000.0, 500000.0 })
+            {
+                object[] stateArgs = { elapsed, null, null };
+                Check((bool)coast.GetType().GetMethod("State").Invoke(coast, stateArgs), "Conic coast does not propagate");
+                var result = stateArgs[1];
+                var computed = new double3((double)result.GetType().GetField("X").GetValue(result), (double)result.GetType().GetField("Y").GetValue(result), (double)result.GetType().GetField("Z").GetValue(result));
+                Check((computed - native.GetStateVectorsAt(new UniverseTime(elapsed)).PositionCci).Length() < 1,
+                    "Elliptic or hyperbolic coast disagrees with native propagation");
+            }
+        }
+        Console.WriteLine("PASS recorded inclined parking orbit with finite thrust reaches lunar SOI before return at 10/100/1000 km periapsis; fuel, cancellation, fallback, impact, conic and mass-override checks");
+    }
+
+    private static void NativeGravityAssistChecks()
+    {
+        const double mu = 1.3271244e20, au = 149597870700, day = 86400;
+        IParentBody Body(string id, double gravity, double radius, double soi)
+        {
+            var body = DispatchProxy.Create<IParentBody, PlannerBodyProxy>();
+            var proxy = (PlannerBodyProxy)body; proxy.Id = id; proxy.Mu = gravity; proxy.Radius = radius; proxy.Soi = soi;
+            return body;
+        }
+        var sun = Body("Sun", mu, 7e8, double.PositiveInfinity);
+        var venus = Body("Venus", 3.24859e14, 6051800, 6.16e8);
+        var mars = Body("Mars", 4.2828e13, 3390000, 5.77e8);
+        Orbit Circle(double radius, double phase) => Orbit.CreateFromStateCci(sun, new UniverseTime(0),
+            new double3(radius * Math.Cos(phase), radius * Math.Sin(phase) * Math.Cos(0.12), radius * Math.Sin(phase) * Math.Sin(0.12)),
+            new double3(-Math.Sqrt(mu / radius) * Math.Sin(phase), Math.Sqrt(mu / radius) * Math.Cos(phase) * Math.Cos(0.12),
+                Math.Sqrt(mu / radius) * Math.Cos(phase) * Math.Sin(0.12)), byte4.Zero);
+        object Vector(double3 vector) => New("LandingVector", vector.X, vector.Y, vector.Z);
+        double3 Native(object vector) => new((double)vector.GetType().GetField("X").GetValue(vector),
+            (double)vector.GetType().GetField("Y").GetValue(vector), (double)vector.GetType().GetField("Z").GetValue(vector));
+        double Number(object obj, string field) => (double)obj.GetType().GetField(field).GetValue(obj);
+        object Snapshot(Orbit orbit)
+        {
+            var state = orbit.GetStateVectorsAt(new UniverseTime(0));
+            return New("TransferOrbit", orbit.Mu, 0.0, Vector(state.PositionCci), Vector(state.VelocityCci));
+        }
+        var parking = Circle(au, 0); var assistOrbit = Circle(0.723 * au, Math.PI / 2); var targetOrbit = Circle(1.52 * au, Math.PI / 2);
+        var request = New("TransferRequest");
+        Set(request, "Parking", Snapshot(parking)); Set(request, "Target", Snapshot(targetOrbit));
+        Set(request, "CentralMu", mu); Set(request, "CentralSafetyRadius", 7e8); Set(request, "DepartureSafetyRadius", 7e8);
+        Set(request, "CentralSoi", double.PositiveInfinity); Set(request, "TargetMu", mars.Mu);
+        Set(request, "TargetRadius", mars.MeanRadius); Set(request, "TargetSoi", mars.SphereOfInfluence); Set(request, "PeriapsisAltitude", 200000.0);
+        Set(request, "Earliest", 300.0); Set(request, "Latest", 400 * day); Set(request, "MinimumDuration", 100 * day); Set(request, "MaximumDuration", 800 * day);
+        Set(request, "Width", 32); Set(request, "Height", 24); Set(request, "IncludeCapture", true); Set(request, "GravityAssists", true);
+        var assistBodies = Array.CreateInstance(Mod.GetType("KITN.TransferBodySnapshot"), 1);
+        assistBodies.SetValue(New("TransferBodySnapshot", "Venus", Snapshot(assistOrbit), venus.Mu, venus.MeanRadius, venus.SphereOfInfluence, 6251800.0), 0);
+        Set(request, "AssistBodies", assistBodies);
+        var grid = Mod.GetType("KITN.TransferMath").GetMethod("Search").Invoke(null, new[] { request, (object)default(System.Threading.CancellationToken), null });
+        var candidates = (System.Collections.IEnumerable)grid.GetType().GetField("Candidates").GetValue(grid);
+        var solution = candidates.Cast<object>().First(candidate => candidate.GetType().GetField("Flyby").GetValue(candidate) != null);
+        double departure = Number(solution, "Departure"), arrival = departure + Number(solution, "Duration");
+        var start = parking.GetStateVectorsAt(new UniverseTime(departure));
+        var coast = Orbit.CreateFromStateCci(sun, new UniverseTime(departure), start.PositionCci,
+            start.VelocityCci + Native(solution.GetType().GetField("DeltaV").GetValue(solution)), byte4.Zero);
+        double Entry(Orbit ship, Orbit body, double epoch, double hint, double soi)
+        {
+            double lo = epoch, hi = hint;
+            Check((ship.GetStateVectorsAt(new UniverseTime(hi)).PositionCci - body.GetStateVectorsAt(new UniverseTime(hi)).PositionCci).Length() < soi,
+                "Native trajectory misses the computed assist or destination SOI");
+            for (int pass = 0; pass < 60; pass++)
+            {
+                double mid = (lo + hi) / 2;
+                if ((ship.GetStateVectorsAt(new UniverseTime(mid)).PositionCci - body.GetStateVectorsAt(new UniverseTime(mid)).PositionCci).Length() > soi) lo = mid; else hi = mid;
+            }
+            return hi;
+        }
+        var metadata = solution.GetType().GetField("Flyby").GetValue(solution);
+        double entry = Entry(coast, assistOrbit, departure, Number(metadata, "Time"), venus.SphereOfInfluence);
+        var shipEntry = coast.GetStateVectorsAt(new UniverseTime(entry)); var bodyEntry = assistOrbit.GetStateVectorsAt(new UniverseTime(entry));
+        var local = Orbit.CreateFromStateCci(venus, new UniverseTime(entry), shipEntry.PositionCci - bodyEntry.PositionCci,
+            shipEntry.VelocityCci - bodyEntry.VelocityCci, byte4.Zero);
+        Check(local.IsUnbound() && local.Periapsis > 6252800 && Math.Abs(local.Periapsis - Number(metadata, "Periapsis")) < 300,
+            "Native flyby is unsafe, bound or disagrees with the computed periapsis");
+        double peTime = local.GetNextPeriapsisTime(new UniverseTime(entry)).Value.Seconds();
+        double low = peTime, high = peTime + 10 * day;
+        for (int pass = 0; pass < 60; pass++)
+        {
+            double mid = (low + high) / 2;
+            if (local.GetStateVectorsAt(new UniverseTime(mid)).PositionCci.Length() < venus.SphereOfInfluence) low = mid; else high = mid;
+        }
+        var localExit = local.GetStateVectorsAt(new UniverseTime(high)); var bodyExit = assistOrbit.GetStateVectorsAt(new UniverseTime(high));
+        Check(Math.Abs(localExit.PositionCci.Length() - venus.SphereOfInfluence) < 0.1
+            && Math.Abs(localExit.VelocityCci.Length() - (shipEntry.VelocityCci - bodyEntry.VelocityCci).Length()) < 0.001,
+            "Unpowered assist changes excess energy across equal SOI radii");
+        var final = Orbit.CreateFromStateCci(sun, new UniverseTime(high), bodyExit.PositionCci + localExit.PositionCci,
+            bodyExit.VelocityCci + localExit.VelocityCci, byte4.Zero);
+        double targetEntry = Entry(final, targetOrbit, high, arrival, mars.SphereOfInfluence);
+        var shipArrival = final.GetStateVectorsAt(new UniverseTime(targetEntry)); var bodyArrival = targetOrbit.GetStateVectorsAt(new UniverseTime(targetEntry));
+        var encounter = Orbit.CreateFromStateCci(mars, new UniverseTime(targetEntry), shipArrival.PositionCci - bodyArrival.PositionCci,
+            shipArrival.VelocityCci - bodyArrival.VelocityCci, byte4.Zero);
+        Check(Math.Abs(encounter.Periapsis - mars.MeanRadius - 200000) < 500,
+            "Independent native propagation through Venus misses requested Mars arrival periapsis");
+        var assistCheck = Mod.GetType("KITN.ManeuverPlanner").GetMethod("AssistPredictionError", BindingFlags.NonPublic | BindingFlags.Static);
+        var plan = FlightPlan.CreateUninitialized(KeyHash.Zero);
+        Check((string)assistCheck.Invoke(null, new object[] { plan, "Venus", "Mars" }) == "transfer.assist_missed",
+            "Native validation accepts a route without the promised gravity assist");
+        plan.Patches.Add(new PatchedConic(new UniverseTime(entry), new UniverseTime(high), PatchTransition.Encounter, PatchTransition.Escape, local, KeyHash.Zero));
+        Check(assistCheck.Invoke(null, new object[] { plan, "Venus", "Mars" }) == null,
+            "Native validation rejects a real planned assist encounter");
+        Console.WriteLine($"PASS independent native Sun → Venus → Mars trajectory conserves flyby energy and reaches {encounter.Periapsis - mars.MeanRadius:F0} m arrival periapsis");
+
+        var earth = Body("Earth", 3.986004418e14, 6371000, 9.24e8);
+        var localParking = Orbit.CreateFromStateCci(earth, new UniverseTime(0), new double3(7e6, 0, 0),
+            new double3(0, Math.Sqrt(earth.Mu / 7e6) * Math.Cos(0.12), Math.Sqrt(earth.Mu / 7e6) * Math.Sin(0.12)), byte4.Zero);
+        Set(request, "Parking", Snapshot(localParking)); Set(request, "Source", Snapshot(parking));
+        Set(request, "DepartureSafetyRadius", 6500000.0); Set(request, "DepartureSoi", earth.SphereOfInfluence);
+        Set(request, "Earliest", 6000.0); Set(request, "Latest", 6e7); Set(request, "MinimumDuration", 1e7); Set(request, "MaximumDuration", 3e7);
+        Set(request, "Width", 12); Set(request, "Height", 12); Set(request, "GravityAssists", false);
+        var phases = new[] { new FiniteBurnPhase(955522.3125, 222.89703369140625, 52813.765625, 49474.73046875 / 222.89703369140625) };
+        Mod.GetType("KITN.TransferBurnRefiner").GetMethod("Attach").Invoke(null, new object[] { request, phases });
+        var ejectionGrid = Mod.GetType("KITN.TransferMath").GetMethod("Search").Invoke(null, new[] { request, (object)default(System.Threading.CancellationToken), null });
+        var route = Call(ejectionGrid, "Pick", true, false, double.PositiveInfinity, 0.0, null);
+        Check((bool)route.GetType().GetField("Valid").GetValue(route), "Finite interplanetary departure loses all direct solutions");
+        departure = Number(route, "Departure"); arrival = departure + Number(route, "Duration");
+        var time = new UniverseTime(departure);
+        var delta = Native(route.GetType().GetField("DeltaV").GetValue(route));
+        var burn = FiniteBurnPredictor.Predict(localParking, time, OrbitalTransfers.CciToVlf(localParking, time, delta), phases);
+        var escapeCoast = New("TransferCoast", earth.Mu, Vector(burn.PositionCci), Vector(burn.VelocityCci));
+        double escapeSeconds = (double)Call(escapeCoast, "OutgoingRadiusTime", earth.SphereOfInfluence);
+        var departureOrbit = Orbit.CreateFromStateCci(earth, burn.Cutoff, burn.PositionCci, burn.VelocityCci, byte4.Zero);
+        var exitTime = burn.Cutoff + escapeSeconds;
+        var escape = departureOrbit.GetStateVectorsAt(exitTime); var origin = parking.GetStateVectorsAt(exitTime);
+        Check(Math.Abs(escape.PositionCci.Length() - earth.SphereOfInfluence) < 1, "Finite departure SOI exit disagrees with native propagation");
+        var heliocentric = Orbit.CreateFromStateCci(sun, exitTime, origin.PositionCci + escape.PositionCci, origin.VelocityCci + escape.VelocityCci, byte4.Zero);
+        double marsEntry = Entry(heliocentric, targetOrbit, exitTime.Seconds(), arrival, mars.SphereOfInfluence);
+        var shipAtMars = heliocentric.GetStateVectorsAt(new UniverseTime(marsEntry)); var marsState = targetOrbit.GetStateVectorsAt(new UniverseTime(marsEntry));
+        var marsApproach = Orbit.CreateFromStateCci(mars, new UniverseTime(marsEntry), shipAtMars.PositionCci - marsState.PositionCci,
+            shipAtMars.VelocityCci - marsState.VelocityCci, byte4.Zero);
+        Check(Math.Abs(marsApproach.Periapsis - mars.MeanRadius - 200000) < 500, "Finite ejection refinement misses native arrival periapsis");
+        Console.WriteLine($"PASS native finite Earth departure crosses the moving SOI boundary and reaches Mars at {marsApproach.Periapsis - mars.MeanRadius:F0} m periapsis");
+        var circularParking = localParking;
+        localParking = Orbit.CreateFromStateCci(earth, new UniverseTime(0), new double3(7e6, 0, 0),
+            new double3(0, Math.Sqrt(earth.Mu * 1.2 / 7e6) * Math.Cos(0.12), Math.Sqrt(earth.Mu * 1.2 / 7e6) * Math.Sin(0.12)), byte4.Zero);
+        Set(request, "Parking", Snapshot(localParking)); Set(request, "Oberth", true);
+        var oberthGrid = Mod.GetType("KITN.TransferMath").GetMethod("Search").Invoke(null, new[] { request, (object)default(System.Threading.CancellationToken), null });
+        var oberthRoute = Call(oberthGrid, "Pick", true, false, double.PositiveInfinity, 0.0, null);
+        Check((bool)oberthRoute.GetType().GetField("Valid").GetValue(oberthRoute), "Finite interplanetary Oberth search loses all periapsis routes");
+        departure = Number(oberthRoute, "Departure"); arrival = departure + Number(oberthRoute, "Duration"); time = new UniverseTime(departure);
+        Check(Math.Abs(localParking.GetStateVectorsAt(time).PositionCci.Length() - localParking.Periapsis) < 1,
+            "Interplanetary Oberth search rotates the burn away from periapsis");
+        delta = Native(oberthRoute.GetType().GetField("DeltaV").GetValue(oberthRoute));
+        burn = FiniteBurnPredictor.Predict(localParking, time, OrbitalTransfers.CciToVlf(localParking, time, delta), phases);
+        escapeCoast = New("TransferCoast", earth.Mu, Vector(burn.PositionCci), Vector(burn.VelocityCci));
+        escapeSeconds = (double)Call(escapeCoast, "OutgoingRadiusTime", earth.SphereOfInfluence); exitTime = burn.Cutoff + escapeSeconds;
+        departureOrbit = Orbit.CreateFromStateCci(earth, burn.Cutoff, burn.PositionCci, burn.VelocityCci, byte4.Zero);
+        escape = departureOrbit.GetStateVectorsAt(exitTime); origin = parking.GetStateVectorsAt(exitTime);
+        heliocentric = Orbit.CreateFromStateCci(sun, exitTime, origin.PositionCci + escape.PositionCci, origin.VelocityCci + escape.VelocityCci, byte4.Zero);
+        marsEntry = Entry(heliocentric, targetOrbit, exitTime.Seconds(), arrival, mars.SphereOfInfluence);
+        shipAtMars = heliocentric.GetStateVectorsAt(new UniverseTime(marsEntry)); marsState = targetOrbit.GetStateVectorsAt(new UniverseTime(marsEntry));
+        marsApproach = Orbit.CreateFromStateCci(mars, new UniverseTime(marsEntry), shipAtMars.PositionCci - marsState.PositionCci,
+            shipAtMars.VelocityCci - marsState.VelocityCci, byte4.Zero);
+        Check(Math.Abs(marsApproach.Periapsis - mars.MeanRadius - 200000) < 500, "Native periapsis-centered Earth departure misses Mars");
+        Console.WriteLine("PASS native eccentric Earth parking orbit departs at periapsis with finite thrust and reaches Mars");
+        localParking = circularParking; Set(request, "Parking", Snapshot(localParking)); Set(request, "Oberth", false);
+        Set(request, "GravityAssists", true); Set(request, "Earliest", 6000.0); Set(request, "Latest", 400 * day);
+        Set(request, "MinimumDuration", 100 * day); Set(request, "MaximumDuration", 800 * day); Set(request, "Width", 32);
+        var assistedEjection = New("TransferGrid", request);
+        Mod.GetType("KITN.TransferGravityAssist").GetMethod("Search").Invoke(null,
+            new object[] { assistedEjection, default(System.Threading.CancellationToken), null });
+        var flybys = ((System.Collections.IEnumerable)assistedEjection.GetType().GetField("Candidates").GetValue(assistedEjection)).Cast<object>().ToArray();
+        Console.WriteLine($"  finite Earth departure assist candidates={flybys.Length}");
+        Check(flybys.Length > 0, "Gravity assists work only for solar parking, not finite planetary departures");
+        var assistedRoute = flybys[0]; departure = Number(assistedRoute, "Departure"); arrival = departure + Number(assistedRoute, "Duration");
+        time = new UniverseTime(departure); delta = Native(assistedRoute.GetType().GetField("DeltaV").GetValue(assistedRoute));
+        burn = FiniteBurnPredictor.Predict(localParking, time, OrbitalTransfers.CciToVlf(localParking, time, delta), phases);
+        escapeCoast = New("TransferCoast", earth.Mu, Vector(burn.PositionCci), Vector(burn.VelocityCci));
+        escapeSeconds = (double)Call(escapeCoast, "OutgoingRadiusTime", earth.SphereOfInfluence); exitTime = burn.Cutoff + escapeSeconds;
+        departureOrbit = Orbit.CreateFromStateCci(earth, burn.Cutoff, burn.PositionCci, burn.VelocityCci, byte4.Zero);
+        escape = departureOrbit.GetStateVectorsAt(exitTime); origin = parking.GetStateVectorsAt(exitTime);
+        heliocentric = Orbit.CreateFromStateCci(sun, exitTime, origin.PositionCci + escape.PositionCci, origin.VelocityCci + escape.VelocityCci, byte4.Zero);
+        metadata = assistedRoute.GetType().GetField("Flyby").GetValue(assistedRoute);
+        entry = Entry(heliocentric, assistOrbit, exitTime.Seconds(), Number(metadata, "Time"), venus.SphereOfInfluence);
+        shipEntry = heliocentric.GetStateVectorsAt(new UniverseTime(entry)); bodyEntry = assistOrbit.GetStateVectorsAt(new UniverseTime(entry));
+        local = Orbit.CreateFromStateCci(venus, new UniverseTime(entry), shipEntry.PositionCci - bodyEntry.PositionCci,
+            shipEntry.VelocityCci - bodyEntry.VelocityCci, byte4.Zero);
+        Check(local.Periapsis > 6252800, "Finite planetary departure produces an unsafe assist");
+        peTime = local.GetNextPeriapsisTime(new UniverseTime(entry)).Value.Seconds(); low = peTime; high = peTime + 10 * day;
+        for (int pass = 0; pass < 60; pass++)
+        {
+            double mid = (low + high) / 2;
+            if (local.GetStateVectorsAt(new UniverseTime(mid)).PositionCci.Length() < venus.SphereOfInfluence) low = mid; else high = mid;
+        }
+        localExit = local.GetStateVectorsAt(new UniverseTime(high)); bodyExit = assistOrbit.GetStateVectorsAt(new UniverseTime(high));
+        final = Orbit.CreateFromStateCci(sun, new UniverseTime(high), bodyExit.PositionCci + localExit.PositionCci,
+            bodyExit.VelocityCci + localExit.VelocityCci, byte4.Zero);
+        targetEntry = Entry(final, targetOrbit, high, arrival, mars.SphereOfInfluence);
+        shipArrival = final.GetStateVectorsAt(new UniverseTime(targetEntry)); bodyArrival = targetOrbit.GetStateVectorsAt(new UniverseTime(targetEntry));
+        encounter = Orbit.CreateFromStateCci(mars, new UniverseTime(targetEntry), shipArrival.PositionCci - bodyArrival.PositionCci,
+            shipArrival.VelocityCci - bodyArrival.VelocityCci, byte4.Zero);
+        // Native hyperbolic propagation stops at 1e-8 in anomaly. Metre-scale
+        // differences at the first SOI magnify across the subsequent flyby/coast.
+        Check(Math.Abs(encounter.Periapsis - mars.MeanRadius - 200000) < 2000,
+            "Finite Earth departure via Venus does not reach the predicted native Mars arrival");
+        Console.WriteLine($"PASS native finite Earth → Venus → Mars transfer reaches {encounter.Periapsis - mars.MeanRadius:F0} m arrival periapsis");
     }
 
     private static void NativeRouteValidationChecks(Vehicle vehicle, IParentBody earth, Celestial moon, Orbit incoming, Orbit parking)
@@ -699,7 +1159,7 @@ internal static class Program
         Check(Error(Prediction(parking, false)) == "transfer.returning", "Bound fallback with no target SOI is accepted");
         Check(Error(Prediction(parking, true, 10000)) == "transfer.returning", "Late encounter beyond the first return is accepted");
         Check(Error(Prediction(escape, false)) == "transfer.no_encounter", "Escape with no target encounter is accepted");
-        Check(Error(Prediction(escape, true, impact: true)) == "transfer.returning", "Impact before the target encounter is accepted");
+        Check(Error(Prediction(escape, true, impact: true)) == "transfer.impact", "Impact before the target encounter is accepted");
         Check(Error(Prediction(escape, true)) == null, "Necessary escape with a safe target encounter is rejected");
         var circular = Orbit.CreateFromStateCci(earth, new UniverseTime(0), new double3(7e6, 0, 0), new double3(0, Math.Sqrt(earth.Mu / 7e6), 0), byte4.Zero);
         Check(Error(Prediction(circular, true)) == null, "A confirmed encounter before the first return is rejected merely because the transfer is bound");
@@ -720,13 +1180,13 @@ internal static class Program
             Set(request, "MinimumDuration", 180000.0); Set(request, "MaximumDuration", 750000.0);
             return request;
         }
-        (object planner, Burn candidate) Candidate(bool execute)
+        (object planner, Burn candidate) Candidate(bool execute, bool bestEffort = false)
         {
             Set(vehicle, "FlightPlan", new FlightPlan(parking, KeyHash.Zero));
             var fc = new FlightComputer { RollMode = FlightComputerRollMode.Decoupled }; Set(vehicle, "FlightComputer", fc);
             var request = MakeRequest(); var grid = New("TransferGrid", request);
             var solution = New("TransferSolution", 300.0, 500000.0, Vector(parking.GetStateVectorsAt(new UniverseTime(300)).PositionCci),
-                Vector(new double3(3200, 0, 0)), Vector(new double3(600, 0, 0)), 1000.0, false);
+                Vector(new double3(3200, 0, 0)), Vector(new double3(600, 0, 0)), 1000.0, false, bestEffort);
             ((Array)grid.GetType().GetField("Cells").GetValue(grid)).SetValue(solution, 0);
             var planner = New("ManeuverPlanner");
             Set(planner, "_vehicle", vehicle); Set(planner, "Target", moon); Set(planner, "UnavailableReason", null);
@@ -750,18 +1210,28 @@ internal static class Program
                 "An unverified candidate starts alignment, warp or automatic engines");
             pending.candidate.FlightPlan = Prediction(parking, false); vehicle.BurnPlan.FlightPlansOutOfDate = false;
             Call(pending.planner, "UpdateExecution", vehicle, 0.0, true, false);
-            Check(!vehicle.BurnPlan.TryGetBurn(pending.candidate) && (bool)type.GetProperty("IsSearching").GetValue(pending.planner)
-                && !(bool)type.GetProperty("IsExecuting").GetValue(pending.planner), "Unsafe node is used instead of being removed and replanned");
+            Check(!vehicle.BurnPlan.TryGetBurn(pending.candidate) && !(bool)type.GetProperty("IsSearching").GetValue(pending.planner)
+                && !(bool)type.GetProperty("IsExecuting").GetValue(pending.planner)
+                && (bool)type.GetProperty("CanImproveRoute").GetValue(pending.planner), "Unsafe node starts an unsolicited search or offers no better-route action");
+            for (int step = 0; step < 5; step++) Call(pending.planner, "UpdateExecution", vehicle, 0.0, true, false);
+            Check(vehicle.BurnPlan.BurnCount == 0 && !(bool)type.GetProperty("IsSearching").GetValue(pending.planner), "Waiting for the better-route button creates nodes or restarts search");
+            Orbit unchangedParking = vehicle.Orbit;
+            Call(pending.planner, "HandleAction", "transfer_improve", vehicle, false);
+            Check((bool)type.GetProperty("IsSearching").GetValue(pending.planner) && ReferenceEquals(vehicle.Orbit, unchangedParking),
+                "The better-route action does not search or modifies the current parking orbit");
             var worker = (System.Threading.Tasks.Task)type.GetField("_search", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pending.planner);
-            Check(worker.Wait(10000), "Automatic safe-route retry never completes");
+            Check(worker.Wait(10000), "Requested safe-route search never completes");
             type.GetMethod("Harvest", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(pending.planner, null);
             Check((bool)type.GetProperty("Selected").GetValue(pending.planner).GetType().GetField("Valid").GetValue(type.GetProperty("Selected").GetValue(pending.planner))
-                && (bool)type.GetField("_replanPending", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pending.planner)
-                && (bool)type.GetField("_replanExecute", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pending.planner),
-                "Replanning loses the automatic-transfer request or finds no alternative");
+                && (bool)type.GetField("_replanPending", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pending.planner),
+                "Requested better-route search finds no alternative");
+            Call(pending.planner, "UpdateExecution", vehicle, 0.0, true, false);
+            Check(vehicle.BurnPlan.BurnCount == 0 && !(bool)type.GetProperty("IsExecuting").GetValue(pending.planner)
+                && (string)type.GetProperty("Message").GetValue(pending.planner) == "transfer.better_route_ready",
+                "Finding a better route starts a burn or creates an unsolicited replacement node");
             Call(pending.planner, "HandleAction", "transfer_cancel", vehicle, false);
             Check(!(bool)type.GetField("_replanPending", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pending.planner), "Cancelled retry can create a replacement node later");
-            Console.WriteLine("PASS native unsafe candidate is withheld, removed and automatically replanned; cancellation stops the retry");
+            Console.WriteLine("PASS native unsafe candidate waits for the better-route action; new results require review and preserve the parking orbit");
 
             var preserved = Candidate(false);
             var correction = Burn.Create(parking.GetPointAt(new UniverseTime(400)), 400, new double3(1, 0, 0), vehicle.FlightPlan.Patches[0], vehicle);
@@ -779,6 +1249,62 @@ internal static class Program
                 "A verified target encounter cannot proceed to alignment");
             Call(accepted.planner, "HandleAction", "transfer_stop", vehicle, false);
             Console.WriteLine("PASS native validation preserves other nodes and releases only verified transfers for execution");
+            var missedAssist = Candidate(true);
+            var expectedBody = New("TransferBodySnapshot", "Another Moon", MakeRequest().GetType().GetField("Target").GetValue(MakeRequest()),
+                ((IParentBody)moon).Mu, moon.MeanRadius, moon.SphereOfInfluence, moon.MeanRadius);
+            var expectedFlyby = New("TransferFlyby", expectedBody, 700.0, moon.MeanRadius + 100000);
+            var assisted = New("TransferSolution", 300.0, 500000.0, Vector(new double3(7e6, 0, 0)),
+                Vector(new double3(3200, 0, 0)), Vector(new double3(600, 0, 0)), 1000.0, true, false, expectedFlyby);
+            Set(missedAssist.planner, "_checkingSolution", assisted);
+            missedAssist.candidate.FlightPlan = Prediction(escape, true); vehicle.BurnPlan.FlightPlansOutOfDate = false;
+            Call(missedAssist.planner, "UpdateExecution", vehicle, 0.0, true, false);
+            Check(!vehicle.BurnPlan.TryGetBurn(missedAssist.candidate) && !(bool)type.GetProperty("IsExecuting").GetValue(missedAssist.planner)
+                && (string)type.GetProperty("Message").GetValue(missedAssist.planner) == "transfer.assist_missed",
+                "A safe direct encounter bypasses verification of the promised gravity assist");
+            Console.WriteLine("PASS native maneuver validation removes and stops a node whose promised assist is missing");
+
+            var approximate = Candidate(false, true);
+            approximate.candidate.FlightPlan = Prediction(parking, false); vehicle.BurnPlan.FlightPlansOutOfDate = false;
+            Call(approximate.planner, "UpdateExecution", vehicle, 0.0, true, false);
+            Check(vehicle.BurnPlan.TryGetBurn(approximate.candidate) && !(bool)type.GetProperty("IsChecking").GetValue(approximate.planner)
+                && (string)type.GetProperty("Message").GetValue(approximate.planner) == "transfer.fallback_created",
+                "Best-effort transfer is deleted solely because it returns before an unconfirmed encounter");
+            var recheck = type.GetMethod("RecheckDeparture", BindingFlags.Instance | BindingFlags.NonPublic);
+            approximate.candidate.FlightPlan = Prediction(parking, false);
+            Check((bool)recheck.Invoke(approximate.planner, new object[] { vehicle }), "Updated predictions reinstate the waived return restriction");
+            approximate.candidate.FlightPlan = Prediction(escape, true, impact: true);
+            Check(!(bool)recheck.Invoke(approximate.planner, new object[] { vehicle }) && !vehicle.BurnPlan.TryGetBurn(approximate.candidate),
+                "Best-effort fallback also waives an actual predicted impact");
+            Console.WriteLine("PASS native fallback retains and rechecks a returning transfer node while still rejecting impacts");
+
+            {
+                double lowRadius = moon.MeanRadius - 1000;
+                var lowPeriapsis = Orbit.CreateFromStateCci(moon, new UniverseTime(3600), new double3(lowRadius, 0, 0),
+                    new double3(0, Math.Sqrt(2 * ((IParentBody)moon).Mu / lowRadius + 900 * 900), 0), byte4.Zero);
+                var lowState = lowPeriapsis.GetStateVectorsAt(new UniverseTime(0));
+                var lowIncoming = Orbit.CreateFromStateCci(moon, new UniverseTime(0), lowState.PositionCci, lowState.VelocityCci, byte4.Zero);
+                var lowArrival = Candidate(false);
+                lowArrival.candidate.FlightPlan = Prediction(escape, true); vehicle.BurnPlan.FlightPlansOutOfDate = false;
+                lowArrival.candidate.FlightPlan.Patches[1] = new PatchedConic(new UniverseTime(1000), new UniverseTime(10000),
+                    PatchTransition.Encounter, PatchTransition.Final, lowIncoming, KeyHash.Zero);
+                Check(Error(lowArrival.candidate.FlightPlan) == "transfer.invalid_periapsis", "Unsafe arrival periapsis loses the altitude cause needed for adjustment");
+                Call(lowArrival.planner, "UpdateExecution", vehicle, 0.0, true, false);
+                float before = (float)type.GetField("PeriapsisKm").GetValue(lowArrival.planner);
+                float suggested = (float)type.GetProperty("SuggestedPeriapsisKm").GetValue(lowArrival.planner);
+                Check(suggested > before && before == 100 && vehicle.BurnPlan.BurnCount == 0
+                    && !(bool)type.GetProperty("IsSearching").GetValue(lowArrival.planner), "Unsafe arrival changes altitude before consent or offers no measured correction");
+                Call(lowArrival.planner, "HandleAction", "transfer_improve", vehicle, false);
+                Check((float)type.GetField("PeriapsisKm").GetValue(lowArrival.planner) == suggested
+                    && (bool)type.GetProperty("IsSearching").GetValue(lowArrival.planner), "Approved search ignores the proposed arrival altitude");
+                var adjustedRequest = type.GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(lowArrival.planner);
+                Check(Math.Abs((double)adjustedRequest.GetType().GetField("PeriapsisAltitude").GetValue(adjustedRequest) - suggested * 1000.0) < 0.01,
+                    "Adjusted periapsis is shown in the UI but omitted from the actual transfer calculation");
+                Call(lowArrival.planner, "HandleAction", "transfer_cancel", vehicle, false);
+                Call(lowArrival.planner, "UpdateExecution", vehicle, 0.0, true, false);
+                Check(!(bool)type.GetProperty("IsSearching").GetValue(lowArrival.planner) && vehicle.BurnPlan.BurnCount == 0,
+                    "Cancelled improved-route search publishes or creates a node later");
+            }
+            Console.WriteLine("PASS native better-route consent applies measured arrival periapsis correction and cancellation creates no node");
         }
         finally { controllable.SetValue(null, original); Universe.AutoWarpStop(true); Universe.SetSimulationSpeed(1, false); }
     }
@@ -923,29 +1449,88 @@ internal static class Program
         var page = Window.GetType().GetField("_transferPage", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window);
         Set(planner, "Grid", null); Set(planner, "SelectedIndex", -1);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
-        Check(HasDrawList("transfer-porkchop-status"), "Porkchop area disappears before a calculation");
+        Check(HasPlotSurface(), "Porkchop area disappears before a calculation");
         Save("maneuver-porkchop-empty.png", 580, 420, 12, 12);
         Check(Click(80, 318, "autopilot") == null, "Porkchop empty state still has a duplicate Calculate button");
         var completionType = typeof(System.Threading.Tasks.TaskCompletionSource<>).MakeGenericType(grid.GetType());
         var completion = Activator.CreateInstance(completionType);
         Set(planner, "_search", completionType.GetProperty("Task").GetValue(completion)); Set(planner, "_progress", 37);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
-        Check(HasDrawList("transfer-porkchop-status"), "Porkchop area disappears while calculating");
+        Check(HasPlotSurface(), "Porkchop area disappears while calculating");
         Save("maneuver-porkchop-calculating.png", 580, 420, 12, 12);
+        for (int frame = 0; frame < 60; frame++) Frame(); // Finish the intentional page transition before testing background stability.
+        string stableChrome = PlannerChrome();
+        for (int frame = 0; frame < 24; frame++)
+        {
+            Set(planner, "_progress", frame * 4); Frame();
+            Check(HasPlotSurface() && PlannerChrome() == stableChrome, "Search progress flickers or moves the mod window, header or navigation");
+        }
         Set(planner, "_search", null); Set(planner, "Grid", grid); Call(planner, "SelectBest", false);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-porkchop.png", 800, 670, 12, 12);
+        var previousPlan = Flight.GetType().GetProperty("LaunchPlan").GetValue(Flight);
+        var displayedPlan = New("AdaptiveFlightPlan");
+        Set(displayedPlan, "RequestedSettings", Mod.GetType("KITN.FlightPlanSettings").GetMethod("Capture").Invoke(null, new object[] { Profile }));
+        Set(displayedPlan, "Success", true); Set(displayedPlan, "MessageKey", "planning.ready");
+        Set(displayedPlan, "MessageArgs", new object[] { 2.5, 65.0, 8000.0 });
+        Set(Flight, "LaunchPlan", displayedPlan);
+        var launchCompletion = Activator.CreateInstance(typeof(System.Threading.Tasks.TaskCompletionSource<>).MakeGenericType(displayedPlan.GetType()));
+        var launchTask = launchCompletion.GetType().GetProperty("Task").GetValue(launchCompletion);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        string chrome = PlannerChrome();
+        uint pendingInk = ImGui.ColorConvertFloat4ToU32((float4)Mod.GetType("KITN.GameUiColors").GetProperty("Pending").GetValue(null));
+        int PendingHeader() => WindowDrawList("autopilot").VtxBuffer.Span.ToArray()
+            .Count(vertex => vertex.col == pendingInk && vertex.pos.Y < 90);
+        int headerInk = PendingHeader();
+        string flightPhase = (string)Window.GetType().GetMethod("GuidancePhase", BindingFlags.NonPublic | BindingFlags.Static)
+            .Invoke(null, new[] { (object)Profile, Guidance, Flight });
+        string completedMessage = (string)Call(Flight, "PlanningMessage", Profile);
+        for (int frame = 0; frame < 24; frame++)
+        {
+            Set(Flight, "_planning", frame % 2 == 0 ? launchTask : null); Frame();
+            Check(PlannerChrome() == chrome && PendingHeader() == headerInk, "Unrelated background flight planning flickers the transfer header or layout");
+            Check((string)Call(Flight, "PlanningMessage", Profile) == completedMessage,
+                "Background recalculation replaces the completed flight message with Planning");
+            Check((string)Window.GetType().GetMethod("GuidancePhase", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new[] { (object)Profile, Guidance, Flight }) == flightPhase,
+                "A completed flight preview flashes Planning while refreshing");
+        }
+        Set(Flight, "_planning", launchTask);
+        Check(!(bool)Call(Flight, "CanLaunch", Profile), "Retaining the displayed preview bypasses pending launch verification");
+        Set(Flight, "_planning", null); Set(Flight, "LaunchPlan", previousPlan);
+        Console.WriteLine("PASS background flight preview preserves completed status and transfer header without bypassing launch verification");
         int oldSelection = (int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner);
         Click(395, 400, "autopilot");
         Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) != oldSelection, "Porkchop cell click did not change the selection");
-        Check(Click(80, 595, "autopilot") == "transfer_create", "Create node does not reach the physics action queue");
-        Check(Click(80, 110, "autopilot") == "transfer_search", "Calculate does not reach the physics action queue");
-        Click(85, 625, "autopilot");
+        Check(Click(80, 618, "autopilot") == "transfer_create", "Create node does not reach the physics action queue");
+        Check(Click(80, 160, "autopilot") == "transfer_search", "Calculate does not reach the physics action queue");
+        ManualPorkchopChecks(planner, grid, request);
+        Set(planner, "_search", completionType.GetProperty("Task").GetValue(completion));
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        stableChrome = PlannerChrome();
+        for (int frame = 0; frame < 24; frame++)
+        {
+            Set(planner, "_progress", frame * 4); Frame();
+            Check(PlannerChrome() == stableChrome && ReferenceEquals(planner.GetType().GetProperty("Grid").GetValue(planner), grid),
+                "Recalculation clears the displayed plot or makes the UI chrome flicker");
+        }
+        Set(planner, "_search", null);
+        planner.GetType().GetMethod("OfferBetterRoute", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(planner, new object[] { "transfer.returning", null });
+        Set(planner, "SelectedIndex", -1);
+        for (int frame = 0; frame < 3; frame++) Frame(true, true);
+        Save("maneuver-better-route-minimum.png", 580, 420, 12, 12);
+        Check(Click(80, 160, "autopilot") == "transfer_improve", "Better-route confirmation button is unavailable at minimum window size");
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Save("maneuver-better-route.png", 800, 670, 12, 12);
+        planner.GetType().GetMethod("ClearRouteProblem", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(planner, null);
+        Call(planner, "SelectBest", false);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Click(85, 647, "autopilot");
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Check(HasVisiblePlot(), "Expanded search options push the Porkchop out of the minimum window");
         Save("maneuver-porkchop-expanded-minimum.png", 580, 420, 12, 12);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(85, 625, "autopilot");
+        Click(85, 647, "autopilot");
         Set(page, "_mode", 2); Call(planner, "SelectBest", true);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-earliest.png", 800, 670, 12, 12);
@@ -956,7 +1541,7 @@ internal static class Program
         Set(page, "_mode", 0);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-german.png", 800, 670, 12, 12);
-        Click(710, 185, "autopilot");
+        Click(710, 225, "autopilot");
         Save("maneuver-body-dropdown.png", 800, 670, 12, 12);
         var io = ImGui.GetIO();
         io.AddKeyEvent(ImGuiKey.DownArrow, true); Frame(); io.AddKeyEvent(ImGuiKey.DownArrow, false); Frame();
@@ -964,7 +1549,253 @@ internal static class Program
         Check(ReferenceEquals(planner.GetType().GetProperty("Target").GetValue(planner), futureMoon), "Body dropdown cannot select a future mod moon");
         Console.WriteLine("PASS native maneuver page renders all modes, mod-body dropdown and clickable Porkchop");
         Console.WriteLine("PASS Porkchop remains visible before/during calculation and above expanded options at minimum size");
+        Console.WriteLine("PASS better-route button is reachable and both instrument and main window chrome stay stable across search progress");
+        PorkchopUiRegressionChecks(page, planner, request, grid);
+        GravityAssistToggleChecks(page, planner, grid);
+        var oberthVehicle = (Vehicle)RuntimeHelpers.GetUninitializedObject(typeof(Vehicle));
+        Set(oberthVehicle, "FlightPlan", new FlightPlan(native, KeyHash.Zero)); Set(planner, "_vehicle", oberthVehicle);
+        Set(page, "_mode", 1); Set(planner, "UnavailableReason", null); Set(planner, "Grid", grid);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Save("maneuver-oberth-button.png", 800, 670, 12, 12);
+        Check(Click(130, 280, "autopilot") == "transfer_oberth", "Lowest delta-v Oberth button does not enqueue its dedicated search action");
+        LandingSettingsUiChecks();
         Set(Window, "Planner", null); Set(Window, "_tab", 0); ((IDisposable)planner).Dispose();
+    }
+
+    private static void PorkchopUiRegressionChecks(object page, object planner, object originalRequest, object originalGrid)
+    {
+        var request = Call(originalRequest, "CopyForPorkchop"); Set(request, "Oberth", true);
+        double mu = (double)request.GetType().GetField("CentralMu").GetValue(request);
+        var parking = New("TransferOrbit", mu, 0.0, New("LandingVector", 7e6, 0.0, 0.0), New("LandingVector", 0.0, Math.Sqrt(mu * 1.55 / 7e6), 0.0));
+        Set(request, "Parking", parking); Set(request, "Latest", 3 * (double)parking.GetType().GetField("Period").GetValue(parking));
+        Set(request, "Width", 24); Set(request, "Height", 24);
+        var overview = Call(request, "CopyForPorkchop");
+        var result = Mod.GetType("KITN.TransferMath").GetMethod("SearchWithPorkchop").Invoke(null,
+            new[] { request, overview, (object)default(System.Threading.CancellationToken), null });
+        var plotGrid = result.GetType().GetField("PorkchopGrid").GetValue(result);
+        Set(planner, "Grid", result); Call(planner, "SelectBest", false); Set(page, "_mode", 1);
+        var selected = planner.GetType().GetProperty("Selected").GetValue(planner);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Click(110, 256, "autopilot");
+        Check((int)page.GetType().GetField("_mode", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(page) == 0
+            && ReferenceEquals(planner.GetType().GetProperty("Grid").GetValue(planner), result)
+            && selected.Equals(planner.GetType().GetProperty("Selected").GetValue(planner)), "Switching to Porkchop loses the selected Oberth route");
+        Check(ReferenceEquals(page.GetType().GetField("_plotGrid", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(page), plotGrid),
+            "Oberth → Porkchop displays the repeated periapsis grid instead of the cached full-time overview");
+        Frame(); Save("porkchop-after-oberth.png", 800, 670, 12, 12);
+        uint accent = (uint)Mod.GetType("KITN.GameUiColors").GetProperty("AccentU32").GetValue(null);
+        Check((accent & 255) > 180 && (accent >> 8 & 255) > 120 && (accent >> 16 & 255) < 120,
+            "Action accent is not the game's yellow color");
+        Check(WindowDrawList("autopilot").VtxBuffer.Span.ToArray().Count(v => v.col == accent && v.pos.Y > 145 && v.pos.Y < 175) >= 4,
+            "Calculate lost its yellow primary-button background");
+        var cells = (Array)plotGrid.GetType().GetField("Cells").GetValue(plotGrid);
+        int width = (int)overview.GetType().GetField("Width").GetValue(overview), height = (int)overview.GetType().GetField("Height").GetValue(overview);
+        float2 Point(int index)
+        {
+            var rect = PlotRectangle();
+            return new float2(rect.min.X + (rect.max.X - rect.min.X) * (index % width) / (width - 1),
+                rect.max.Y - (rect.max.Y - rect.min.Y) * (index / width) / (height - 1));
+        }
+        int valid = Enumerable.Range(0, cells.Length).First(i => (bool)cells.GetValue(i).GetType().GetField("Valid").GetValue(cells.GetValue(i))
+            && i % width > 0 && i % width < width - 1 && i / width > 0 && i / width < height - 1);
+        int invalid = Enumerable.Range(0, cells.Length).FirstOrDefault(i => !(bool)cells.GetValue(i).GetType().GetField("Valid").GetValue(cells.GetValue(i))
+            && i % width > 0 && i % width < width - 1 && i / width > 0 && i / width < height - 1, -1);
+        if (invalid >= 0)
+        {
+            var unsafePoint = Point(invalid); Click(unsafePoint.X, unsafePoint.Y, "autopilot");
+            Check(ReferenceEquals(planner.GetType().GetProperty("Grid").GetValue(planner), result)
+                && selected.Equals(planner.GetType().GetProperty("Selected").GetValue(planner)), "An invalid overview cell replaces the safe selected route");
+        }
+        var point = Point(valid); Click(point.X, point.Y, "autopilot");
+        Check(ReferenceEquals(planner.GetType().GetProperty("Grid").GetValue(planner), plotGrid)
+            && cells.GetValue(valid).Equals(planner.GetType().GetProperty("Selected").GetValue(planner)), "Plot click selects a snapped Oberth cell instead of the displayed route");
+        Set(planner, "Grid", originalGrid); Call(planner, "SelectBest", false);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Click(85, 647, "autopilot");
+        ImGui.GetIO().AddMousePosEvent(-1000, -1000); Frame();
+        var before = PlotRectangle(); float plotHeight = before.max.Y - before.min.Y;
+        ImGui.GetIO().AddMousePosEvent(300, 380); Frame();
+        ImGui.GetIO().AddMouseWheelEvent(0, -1);
+        for (int frame = 0; frame < 4; frame++) Frame();
+        var after = PlotRectangle();
+        Console.WriteLine($"  plot scroll: before={before.min}/{before.max}, after={after.min}/{after.max}");
+        Save("porkchop-scroll-regression.png", 800, 800, 12, 12);
+        Check(after.min.Y < before.min.Y - 10 && Math.Abs(after.max.Y - after.min.Y - plotHeight) < 1,
+            "Scrolling resizes the Porkchop and changes hovered coordinates");
+        for (int frame = 0; frame < 16; frame++)
+        {
+            ImGui.GetIO().AddMousePosEvent(after.min.X + (after.max.X - after.min.X) * (0.2f + (frame % 5) * 0.1f),
+                Math.Max(225, after.min.Y + (after.max.Y - after.min.Y) * (0.25f + (frame % 3) * 0.2f)));
+            Frame();
+            var tooltip = TooltipRectangle();
+            Check(tooltip.max.X - tooltip.min.X > 320 && tooltip.max.X - tooltip.min.X < 360
+                && tooltip.max.Y - tooltip.min.Y < 350 && tooltip.min.Y >= 0 && tooltip.max.Y <= ImGui.GetIO().DisplaySize.Y,
+                "Scrolled Porkchop tooltip collapses, becomes a vertical strip or leaves the viewport");
+        }
+        Save("porkchop-scrolled-tooltip.png", 800, 800, 12, 12);
+        ImGui.GetIO().AddMousePosEvent(300, 300); ImGui.GetIO().AddMouseWheelEvent(0, 20);
+        for (int frame = 0; frame < 4; frame++) Frame();
+        ImGui.GetIO().AddMousePosEvent(-1000, -1000); Frame();
+        Click(85, 647, "autopilot");
+        Console.WriteLine("PASS cached Oberth → Porkchop switch, exact plot selection, yellow actions and stable tooltip/plot geometry while scrolling");
+    }
+
+    private static unsafe (float2 min, float2 max) TooltipRectangle()
+    {
+        var list = ImGui.GetDrawData().CmdLists.Span.ToArray().LastOrDefault(l => Marshal.PtrToStringUTF8((IntPtr)l._OwnerName)?.Contains("Tooltip") == true);
+        Check(!list.IsNull(), "Porkchop hover tooltip is missing");
+        var points = list.VtxBuffer.Span.ToArray().Select(v => v.pos).ToArray();
+        return (new float2(points.Min(p => p.X), points.Min(p => p.Y)), new float2(points.Max(p => p.X), points.Max(p => p.Y)));
+    }
+
+    private static void LandingSettingsUiChecks()
+    {
+        var landing = New("LandingController"); var draw = Mod.GetType("KITN.LandingSettingsPage").GetMethod("Draw");
+        Set(landing, "AutoWarp", false);
+        Set(landing.GetType().GetField("Settings").GetValue(landing), "AutoWarp", false);
+        bool locked = false; float2 reset = default;
+        void DrawFrame()
+        {
+            ImGui.NewFrame(); bool open = true;
+            ImGui.SetNextWindowPos(new float2(20, 20), ImGuiCond.Always); ImGui.SetNextWindowSize(new float2(780, 650), ImGuiCond.Always);
+            ImGui.SetNextWindowFocus(); ImGui.Begin("Landing settings test", ref open, ImGuiWindowFlags.NoSavedSettings);
+            ImGui.SetNextItemOpen(true, ImGuiCond.Always); draw.Invoke(null, new[] { landing, Store, (object)locked });
+            var min = ImGui.GetItemRectMin(); var max = ImGui.GetItemRectMax(); reset = new float2(100, (min.Y + max.Y) / 2);
+            ImGui.End(); ImGui.Render();
+        }
+        var io = ImGui.GetIO();
+        for (int frame = 0; frame < 3; frame++) DrawFrame(); Save("landing-settings.png", 800, 670, 12, 12);
+        io.AddMousePosEvent(710, 80); DrawFrame(); io.AddMouseButtonEvent(0, true); DrawFrame(); io.AddMouseButtonEvent(0, false); DrawFrame();
+        var settings = landing.GetType().GetField("Settings").GetValue(landing);
+        float changed = (float)settings.GetType().GetProperty("TouchdownSpeedMps").GetValue(settings);
+        Check(changed > 0.4f && Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "Landing descent-speed slider does not update or save");
+        locked = true; io.AddMousePosEvent(630, 80); DrawFrame(); io.AddMouseButtonEvent(0, true); DrawFrame(); io.AddMouseButtonEvent(0, false); DrawFrame();
+        Check((float)landing.GetType().GetField("Settings").GetValue(landing).GetType().GetProperty("TouchdownSpeedMps")
+            .GetValue(landing.GetType().GetField("Settings").GetValue(landing)) == changed, "Active landing settings can be changed midway through guidance");
+        locked = false; DrawFrame(); io.AddMousePosEvent(reset.X, reset.Y); DrawFrame(); io.AddMouseButtonEvent(0, true); DrawFrame(); io.AddMouseButtonEvent(0, false); DrawFrame();
+        settings = landing.GetType().GetField("Settings").GetValue(landing);
+        Check((bool)Call(settings, "Matches", New("LandingSettings")), "Reset landing settings does not restore defaults");
+        io.AddMousePosEvent(-1000, -1000); Frame();
+        Console.WriteLine("PASS native landing settings are editable, saved, locked during automation and resettable");
+    }
+
+    private static void GravityAssistToggleChecks(object page, object planner, object grid)
+    {
+        var options = page.GetType().GetMethod("DrawSearchOptions", BindingFlags.NonPublic | BindingFlags.Instance);
+        Set(page, "Settings", Store); Set(planner, "GravityAssists", false); Set(planner, "Grid", grid);
+        Call(Store, "SetGravityAssists", false, Environment.TickCount64);
+        var io = ImGui.GetIO(); float2 toggle = default;
+        void OptionsFrame()
+        {
+            ImGui.NewFrame(); bool open = true;
+            ImGui.SetNextWindowPos(new float2(20, 20), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new float2(780, 650), ImGuiCond.Always);
+            ImGui.SetNextWindowFocus();
+            ImGui.Begin("Transfer options test", ref open, ImGuiWindowFlags.NoSavedSettings);
+            ImGui.SetNextItemOpen(true, ImGuiCond.Always);
+            options.Invoke(page, new object[] { planner, false });
+            var min = ImGui.GetItemRectMin(); var max = ImGui.GetItemRectMax();
+            toggle = new float2(ImGui.GetWindowPos().X + ImGui.GetWindowSize().X - 55, (min.Y + max.Y) / 2);
+            ImGui.End(); ImGui.Render();
+        }
+        for (int frame = 0; frame < 3; frame++) OptionsFrame();
+        Save("maneuver-gravity-assist-options.png", 800, 670, 12, 12);
+        io.AddMousePosEvent(toggle.X, toggle.Y); OptionsFrame();
+        io.AddMouseButtonEvent(0, true); OptionsFrame(); io.AddMouseButtonEvent(0, false); OptionsFrame();
+        Check((bool)planner.GetType().GetField("GravityAssists").GetValue(planner)
+            && (bool)Store.GetType().GetProperty("GravityAssists").GetValue(Store)
+            && planner.GetType().GetProperty("Grid").GetValue(planner) == null,
+            "Transfer options gravity toggle is unclickable, unsaved or keeps stale direct-only results");
+        Call(Store, "Flush", Environment.TickCount64, true);
+        string path = (string)Store.GetType().GetField("_path", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Store);
+        var restart = New("UiLayoutStore", path); Call(restart, "Load");
+        Check((bool)restart.GetType().GetProperty("GravityAssists").GetValue(restart), "Clicked gravity-assist setting is lost on restart");
+        io.AddMousePosEvent(-1000, -1000); Frame();
+        Console.WriteLine("PASS native gravity-assist toggle changes calculation settings, invalidates stale routes and survives restart");
+    }
+
+    private static void ManualPorkchopChecks(object planner, object original, object request)
+    {
+        var grid = New("TransferGrid", request);
+        var cells = (Array)grid.GetType().GetField("Cells").GetValue(grid);
+        ((Array)original.GetType().GetField("Cells").GetValue(original)).CopyTo(cells, 0);
+        int width = (int)request.GetType().GetField("Width").GetValue(request);
+        int height = (int)request.GetType().GetField("Height").GetValue(request);
+        double first = (double)request.GetType().GetField("Earliest").GetValue(request);
+        double last = (double)request.GetType().GetField("Latest").GetValue(request);
+        double minimum = (double)request.GetType().GetField("MinimumDuration").GetValue(request);
+        double maximum = (double)request.GetType().GetField("MaximumDuration").GetValue(request);
+        const int column = 50;
+        for (int row = 0; row <= 12; row++)
+            for (int col = column; col <= column + 1; col++)
+                cells.SetValue(New("TransferSolution", first + (last - first) * col / (width - 1), minimum + (maximum - minimum) * row / (height - 1),
+                    New("LandingVector", 7e6, 0.0, 0.0), New("LandingVector", 1000.0, 0.0, 0.0), New("LandingVector", 0.0, 0.0, 0.0), 0.0, true), row * width + col);
+        cells.SetValue(New("TransferSolution"), 6 * width + column);
+        Set(planner, "Grid", grid); Set(planner, "_routeProblem", "transfer.returning");
+        Call(planner, "Select", column);
+        Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) == column
+            && !(bool)planner.GetType().GetProperty("NeedsBetterRoute").GetValue(planner),
+            "Manual selection at the shortest-flight row is remapped to a bound cell or blocked after another failed route");
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        float2 Point(int row)
+        {
+            var bounds = PlotRectangle();
+            return new float2(bounds.min.X + (bounds.max.X - bounds.min.X) * column / (width - 1),
+                bounds.max.Y - (bounds.max.Y - bounds.min.Y) * row / (height - 1));
+        }
+        float2 bottom = Point(0);
+        Call(planner, "Select", 12 * width + column);
+        Click(bottom.X, bottom.Y, "autopilot");
+        Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) == column, "Clicking the bottom plot border cannot select the shortest flight time");
+        var io = ImGui.GetIO();
+        float2 start = Point(12); io.AddMousePosEvent(start.X, start.Y); Frame();
+        io.AddMouseButtonEvent(0, true); Frame();
+        for (int row = 11; row >= 0; row--)
+        {
+            float2 point = Point(row); io.AddMousePosEvent(point.X, point.Y); Frame();
+        }
+        io.AddMouseButtonEvent(0, false); Frame();
+        Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) == column,
+            "Dragging downward snaps the manual selection away from the requested escape cell");
+        Save("maneuver-manual-shortest-flight.png", 800, 670, 12, 12);
+        Call(planner, "Select", 12 * width + column);
+        float2 blocked = Point(6);
+        Click(blocked.X, blocked.Y, "autopilot");
+        Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) == 12 * width + column,
+            "Filled unsafe plot region becomes selectable");
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Save("maneuver-unsafe-regions.png", 800, 670, 12, 12);
+        var exclusions = (System.Collections.IList)planner.GetType().GetField("_excludedWindows", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(planner);
+        exclusions.Add(New("TransferWindowExclusion", first + (last - first) * column / (width - 1), minimum, 0.1, 0.1));
+        Call(planner, "Select", 12 * width + column); Call(planner, "Select", column);
+        Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) == 12 * width + column
+            && (string)planner.GetType().GetProperty("Message").GetValue(planner) == "transfer.rejected_window", "Manual choice bypasses a known failed native trajectory");
+        exclusions.Clear(); Set(planner, "Grid", original); Call(planner, "SelectBest", false);
+        object Vector(double x, double y, double z) => New("LandingVector", x, y, z);
+        double refinedDeparture = first + (last - first) * 0.3751, refinedDuration = minimum + (maximum - minimum) * 0.5829;
+        var optimized = New("TransferSolution", refinedDeparture, refinedDuration, Vector(7e6, 0, 0), Vector(1, 0, 0), Vector(100, 0, 0), 0.0, false);
+        var candidates = (System.Collections.IList)original.GetType().GetField("Candidates").GetValue(original);
+        candidates.Add(optimized); Call(planner, "SelectBest", false);
+        var selection = planner.GetType().GetProperty("Selected").GetValue(planner);
+        Check((double)selection.GetType().GetField("Departure").GetValue(selection) == refinedDeparture,
+            "Optimized minimum is rounded back to the nearest cell before node creation");
+        Call(planner, "Select", 12 * width + column);
+        selection = planner.GetType().GetProperty("Selected").GetValue(planner);
+        Check((double)selection.GetType().GetField("Departure").GetValue(selection) != refinedDeparture,
+            "Manual selection still executes the previous optimized minimum");
+        candidates.Clear(); Call(planner, "SelectBest", false);
+        for (int frame = 0; frame < 3; frame++) Frame(true);
+        Console.WriteLine("PASS native Porkchop click and drag select the exact shortest-flight escape cell, while failed windows remain blocked");
+    }
+
+    private static (float2 min, float2 max) PlotRectangle()
+    {
+        uint background = ImGui.ColorConvertFloat4ToU32(new float4(0.09f, 0.12f, 0.15f, 1));
+        var points = ImGui.GetDrawData().CmdLists.Span.ToArray().SelectMany(list => list.VtxBuffer.Span.ToArray())
+            .Where(vertex => vertex.col == background).Select(vertex => vertex.pos).ToArray();
+        Check(points.Length >= 4, "Native plot background is missing");
+        return (new float2(points.Min(point => point.X), points.Min(point => point.Y)),
+            new float2(points.Max(point => point.X), points.Max(point => point.Y)));
     }
 
     private static unsafe bool HasDrawList(string token)
@@ -981,6 +1812,21 @@ internal static class Program
                 if ((vertex.col >> 16 & 255) > 110 && (vertex.col >> 16 & 255) > (vertex.col & 255) * 1.4
                     && (vertex.col >> 8 & 255) > 50 && vertex.pos.X >= 20 && vertex.pos.X < 580 && vertex.pos.Y >= 160 && vertex.pos.Y < 400) return true;
         return false;
+    }
+
+    private static bool HasPlotSurface()
+    {
+        uint guide = ImGui.ColorConvertFloat4ToU32(new float4(1, 1, 1, 0.05f));
+        return ImGui.GetDrawData().CmdLists.Span.ToArray().Any(list => list.VtxBuffer.Span.ToArray()
+            .Count(vertex => vertex.col == guide && vertex.pos.Y >= 240 && vertex.pos.Y < 400) >= 8);
+    }
+
+    private static string PlannerChrome()
+    {
+        string Chrome(string id) => string.Join(";", WindowDrawList(id).VtxBuffer.Span.ToArray()
+            .Where(vertex => vertex.col == ConsoleStyle.PanelU32 || vertex.col == ConsoleStyle.ActiveToolU32)
+            .Select(vertex => $"{vertex.pos.X:R},{vertex.pos.Y:R},{vertex.col}"));
+        return Chrome("autopilot") + "|" + Chrome("mission_time");
     }
 
     private static void Frame(bool place = false, bool small = false)

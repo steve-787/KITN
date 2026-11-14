@@ -4,6 +4,7 @@
  * Used under the MIT alternative; see THIRD_PARTY_NOTICES.md.
  */
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace KITN
@@ -11,7 +12,7 @@ namespace KITN
     /// <summary>Immutable elliptical ephemeris. All worker calculations use SI units and inertial vectors.</summary>
     internal sealed class TransferOrbit
     {
-        public readonly double Mu, Epoch, A, Eccentricity, Period, Periapsis;
+        public readonly double Mu, Epoch, A, Eccentricity, Period, Periapsis, Apoapsis;
         private readonly LandingVector _p, _q;
         private readonly double _meanAtEpoch, _motion;
         public readonly bool Valid;
@@ -34,6 +35,7 @@ namespace KITN
             _motion = Math.Sqrt(mu / (A * A * A));
             Period = 2 * Math.PI / _motion;
             Periapsis = A * (1 - Eccentricity);
+            Apoapsis = A * (1 + Eccentricity);
             Valid = double.IsFinite(Period) && double.IsFinite(epoch);
         }
 
@@ -76,8 +78,29 @@ namespace KITN
     {
         public TransferOrbit Parking, Source, Target;
         public double Now, Earliest, Latest, MinimumDuration, MaximumDuration, CentralMu;
-        public double TargetMu, TargetRadius, PeriapsisAltitude, DepartureSafetyRadius, DepartureSoi, CentralSoi;
-        public bool IncludeCapture;
+        public double TargetMu, TargetRadius, TargetSoi, PeriapsisAltitude, DepartureSafetyRadius, DepartureSoi, CentralSoi;
+        public double MinimumTransferApoapsis, MinimumTransferPeriapsis;
+        public double CentralSafetyRadius;
+        public bool GravityAssists;
+        public bool Oberth;
+        public TransferBodySnapshot[] AssistBodies = Array.Empty<TransferBodySnapshot>();
+        public Func<double, LandingVector, CancellationToken, TransferBurnState> PredictBurn;
+        public bool IncludeCapture, UseBestEffortFallback;
+        public Func<TransferSolution, CancellationToken, TransferSolution> Refine;
+        public Dictionary<string, int> Rejections { get; private set; } = new Dictionary<string, int>(StringComparer.Ordinal);
+        public TransferRequest CopyForPorkchop()
+        {
+            // Ephemerides and arrays are immutable snapshots. Rebind finite-burn callbacks to this copy before searching.
+            var copy = (TransferRequest)MemberwiseClone();
+            copy.Oberth = false;
+            copy.PredictBurn = null; copy.Refine = null;
+            copy.Rejections = new Dictionary<string, int>(StringComparer.Ordinal);
+            return copy;
+        }
+        public TransferSolution Reject(string reason)
+        {
+            Rejections.TryGetValue(reason, out int count); Rejections[reason] = count + 1; return default;
+        }
         public TransferWindowExclusion[] ExcludedWindows = Array.Empty<TransferWindowExclusion>();
         public int Width = 96, Height = 96;
         public bool Ejection => Source != null;
@@ -87,16 +110,22 @@ namespace KITN
             && double.IsFinite(MinimumDuration) && MinimumDuration > 0 && double.IsFinite(MaximumDuration) && MaximumDuration > MinimumDuration
             && double.IsFinite(PeriapsisAltitude) && PeriapsisAltitude >= 0 && TargetMu > 0 && double.IsFinite(TargetMu)
             && TargetRadius > 0 && double.IsFinite(TargetRadius) && double.IsFinite(DepartureSafetyRadius)
+            && double.IsFinite(TargetSoi) && TargetSoi >= 0
             && double.IsFinite(DepartureSoi) && DepartureSoi >= 0
             && !double.IsNaN(CentralSoi) && CentralSoi >= 0
+            && double.IsFinite(MinimumTransferApoapsis) && MinimumTransferApoapsis >= 0
+            && double.IsFinite(MinimumTransferPeriapsis) && MinimumTransferPeriapsis >= 0
             && Width >= 2 && Height >= 2 && Width <= 2048 && Height <= 200;
     }
 
     internal readonly struct TransferWindowExclusion
     {
         public readonly double Departure, Duration, DepartureMargin, DurationMargin;
+        public readonly bool AllowBestEffort;
         public TransferWindowExclusion(double departure, double duration, double departureMargin, double durationMargin)
-        { Departure = departure; Duration = duration; DepartureMargin = departureMargin; DurationMargin = durationMargin; }
+            : this(departure, duration, departureMargin, durationMargin, false) { }
+        public TransferWindowExclusion(double departure, double duration, double departureMargin, double durationMargin, bool allowBestEffort)
+        { Departure = departure; Duration = duration; DepartureMargin = departureMargin; DurationMargin = durationMargin; AllowBestEffort = allowBestEffort; }
         public bool Contains(double departure, double duration)
             => Math.Abs(departure - Departure) <= DepartureMargin && Math.Abs(duration - Duration) <= DurationMargin;
     }
@@ -105,12 +134,19 @@ namespace KITN
     {
         public readonly double Departure, Duration, DepartureDv, CaptureDv;
         public readonly LandingVector Position, DeltaV, ArrivalExcess;
-        public readonly bool Valid, EscapesCentral;
+        public readonly bool Valid, EscapesCentral, BestEffort;
+        public readonly TransferFlyby Flyby;
         public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral = false)
+            : this(departure, duration, position, deltaV, arrivalExcess, capture, escapesCentral, false) { }
+        public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral, bool bestEffort)
+            : this(departure, duration, position, deltaV, arrivalExcess, capture, escapesCentral, bestEffort, null) { }
+        public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral, bool bestEffort, TransferFlyby flyby)
         {
             Departure = departure; Duration = duration; Position = position; DeltaV = deltaV; ArrivalExcess = arrivalExcess;
             DepartureDv = deltaV.Length; CaptureDv = capture;
             EscapesCentral = escapesCentral;
+            BestEffort = bestEffort;
+            Flyby = flyby;
             Valid = double.IsFinite(departure) && double.IsFinite(duration) && duration > 0 && position.IsFinite
                 && deltaV.IsFinite && arrivalExcess.IsFinite && double.IsFinite(capture) && capture >= 0 && position.Length > 0;
         }
@@ -121,25 +157,56 @@ namespace KITN
     {
         public readonly TransferRequest Request;
         public readonly TransferSolution[] Cells;
+        public readonly List<TransferSolution> Candidates = new List<TransferSolution>();
+        public bool BestEffortPass;
+        public TransferGrid PorkchopGrid;
         public TransferGrid(TransferRequest request) { Request = request; Cells = new TransferSolution[request.Width * request.Height]; }
-        public int Best(bool capture, double notBefore = double.NegativeInfinity)
+        public bool Available(int index, double notBefore, IReadOnlyList<TransferWindowExclusion> excluded = null)
+        {
+            if (index < 0 || index >= Cells.Length || !Cells[index].Valid || Cells[index].Departure < notBefore) return false;
+            if (excluded != null)
+                foreach (var window in excluded)
+                    if (window.Contains(Cells[index].Departure, Cells[index].Duration) && !(Cells[index].BestEffort && window.AllowBestEffort)) return false;
+            return true;
+        }
+
+        public int Best(bool capture, double notBefore = double.NegativeInfinity, IReadOnlyList<TransferWindowExclusion> excluded = null)
         {
             int best = -1; double cost = double.PositiveInfinity;
             for (int i = 0; i < Cells.Length; i++)
-                if (Cells[i].Valid && Cells[i].Departure >= notBefore
-                    && (best < 0 || (Cells[best].EscapesCentral && !Cells[i].EscapesCentral)
-                        || (Cells[best].EscapesCentral == Cells[i].EscapesCentral && Cells[i].Cost(capture) < cost)))
+                if (Available(i, notBefore, excluded)
+                    && (best < 0 || Cells[i].Cost(capture) < cost))
                 { best = i; cost = Cells[i].Cost(capture); }
             return best;
         }
-        public int Earliest(bool capture, double maximumDv, double notBefore = double.NegativeInfinity)
+
+        public TransferSolution Pick(bool capture, bool earliest, double maximumDv, double notBefore,
+            IReadOnlyList<TransferWindowExclusion> excluded = null)
+        {
+            var best = default(TransferSolution);
+            void Consider(TransferSolution candidate)
+            {
+                if (!candidate.Valid || candidate.Departure < notBefore || (earliest && candidate.Cost(capture) > maximumDv)) return;
+                if (excluded != null)
+                    foreach (var window in excluded)
+                        if (window.Contains(candidate.Departure, candidate.Duration) && !(candidate.BestEffort && window.AllowBestEffort)) return;
+                if (!best.Valid || (!earliest && candidate.Cost(capture) < best.Cost(capture))
+                    || (earliest && ((best.EscapesCentral && !candidate.EscapesCentral)
+                        || (best.EscapesCentral == candidate.EscapesCentral && (candidate.Departure < best.Departure - 1e-6
+                            || (Math.Abs(candidate.Departure - best.Departure) <= 1e-6 && candidate.Cost(capture) < best.Cost(capture))))))) best = candidate;
+            }
+            foreach (var candidate in Cells) Consider(candidate);
+            foreach (var candidate in Candidates) Consider(candidate);
+            return best;
+        }
+        public int Earliest(bool capture, double maximumDv, double notBefore = double.NegativeInfinity, IReadOnlyList<TransferWindowExclusion> excluded = null)
         {
             if (!double.IsFinite(maximumDv) || maximumDv <= 0) return -1;
             int best = -1;
             for (int i = 0; i < Cells.Length; i++)
             {
                 var cell = Cells[i];
-                if (!cell.Valid || cell.Departure < notBefore || cell.Cost(capture) > maximumDv) continue;
+                if (!Available(i, notBefore, excluded) || cell.Cost(capture) > maximumDv) continue;
                 if (best < 0 || (Cells[best].EscapesCentral && !cell.EscapesCentral)
                     || (Cells[best].EscapesCentral == cell.EscapesCentral
                         && (cell.Departure < Cells[best].Departure - 1e-6
@@ -148,29 +215,18 @@ namespace KITN
             return best;
         }
 
-        // Keep a clicked window close to the user's choice while preferring a bound alternative.
-        public int Preferred(int index, double notBefore)
-        {
-            if (index < 0 || index >= Cells.Length || !Cells[index].Valid || Cells[index].Departure < notBefore) return -1;
-            var selected = Cells[index];
-            if (!selected.EscapesCentral) return index;
-            int best = index;
-            double nearest = double.PositiveInfinity;
-            for (int i = 0; i < Cells.Length; i++)
-            {
-                var candidate = Cells[i];
-                if (!candidate.Valid || candidate.EscapesCentral || candidate.Departure < notBefore) continue;
-                double dx = (candidate.Departure - selected.Departure) / Math.Max(1, Request.Latest - Request.Earliest);
-                double dy = (candidate.Duration - selected.Duration) / Math.Max(1, Request.MaximumDuration - Request.MinimumDuration);
-                double distance = dx * dx + dy * dy;
-                if (distance < nearest) { nearest = distance; best = i; }
-            }
-            return best;
-        }
     }
 
     internal static class TransferMath
     {
+        public static TransferGrid SearchWithPorkchop(TransferRequest request, TransferRequest overview, CancellationToken cancellation, Action<int> progress = null)
+        {
+            if (overview == null) return Search(request, cancellation, progress);
+            var result = Search(request, cancellation, value => progress?.Invoke(value / 2));
+            cancellation.ThrowIfCancellationRequested();
+            result.PorkchopGrid = Search(overview, cancellation, value => progress?.Invoke(50 + value / 2));
+            return result;
+        }
         public static double DefaultDepartureWindow(TransferRequest request)
         {
             if (!request.Ejection) return request.Parking.Period * 2;
@@ -193,7 +249,24 @@ namespace KITN
         public static TransferGrid Search(TransferRequest request, CancellationToken cancellation, Action<int> progress = null)
         {
             if (!request.Valid) throw new ArgumentException("Invalid transfer search bounds or orbital state.");
-            var grid = new TransferGrid(request);
+            request.Rejections.Clear();
+            var grid = SearchPass(request, cancellation, false, value => progress?.Invoke(value * 40 / 100));
+            TransferGravityAssist.Search(grid, cancellation, value => progress?.Invoke(40 + value * 25 / 100));
+            TransferMinimumSearch.Refine(grid, cancellation, value => progress?.Invoke(65 + value * 15 / 100));
+            cancellation.ThrowIfCancellationRequested();
+            if (request.UseBestEffortFallback && !grid.Pick(request.IncludeCapture, false, double.PositiveInfinity, request.Now).Valid)
+            {
+                grid = SearchPass(request, cancellation, true, value => progress?.Invoke(80 + value * 10 / 100));
+                TransferGravityAssist.Search(grid, cancellation, value => progress?.Invoke(90 + value * 5 / 100));
+                TransferMinimumSearch.Refine(grid, cancellation, value => progress?.Invoke(95 + value * 5 / 100));
+            }
+            progress?.Invoke(100);
+            return grid;
+        }
+
+        private static TransferGrid SearchPass(TransferRequest request, CancellationToken cancellation, bool bestEffort, Action<int> progress)
+        {
+            var grid = new TransferGrid(request) { BestEffortPass = bestEffort };
             for (int x = 0; x < request.Width; x++)
             {
                 cancellation.ThrowIfCancellationRequested();
@@ -202,7 +275,14 @@ namespace KITN
                 {
                     cancellation.ThrowIfCancellationRequested();
                     double duration = request.MinimumDuration + (request.MaximumDuration - request.MinimumDuration) * y / (request.Height - 1);
-                    grid.Cells[y * request.Width + x] = Solve(request, departure, duration);
+                    if (request.Oberth)
+                    {
+                        grid.Cells[y * request.Width + x] = Evaluate(request, departure, duration, bestEffort, cancellation);
+                        continue;
+                    }
+                    var solution = SolveCandidate(request, departure, duration, bestEffort);
+                    grid.Cells[y * request.Width + x] = solution.Valid && request.Refine != null
+                        ? request.Refine(solution, cancellation) : solution;
                 }
                 progress?.Invoke((x + 1) * 100 / request.Width);
             }
@@ -210,13 +290,27 @@ namespace KITN
         }
 
         public static TransferSolution Solve(TransferRequest request, double departure, double duration)
+            => SolveCandidate(request, departure, duration, false);
+
+        public static TransferSolution Evaluate(TransferRequest request, double departure, double duration, bool bestEffort, CancellationToken cancellation)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            departure = TransferOberth.Departure(request, departure);
+            if (!double.IsFinite(departure)) return request.Reject("no_periapsis_window");
+            if (departure < request.Earliest || departure > request.Latest || duration < request.MinimumDuration || duration > request.MaximumDuration) return default;
+            var candidate = SolveCandidate(request, departure, duration, bestEffort);
+            if (request.Oberth) return TransferOberth.Refine(request, candidate, departure, duration, cancellation);
+            return candidate.Valid && request.Refine != null ? request.Refine(candidate, cancellation) : candidate;
+        }
+
+        private static TransferSolution SolveCandidate(TransferRequest request, double departure, double duration, bool bestEffort)
         {
             if (!(duration > 0 && departure >= request.Now)) return default;
             try
             {
                 var start = request.Source ?? request.Parking;
                 if (!start.State(departure, out var r1, out var v1)
-                    || !request.Target.State(departure + duration, out var r2, out var v2)) return default;
+                    || !request.Target.State(departure + duration, out var r2, out var v2)) return request.Reject("ephemeris");
                 var (outgoing, incoming) = TransferLambert.Solve(request.CentralMu, r1, r2, duration,
                     TransferGeometry.Prograde, 0, LandingVector.Cross(r1, v1));
                 var departureDv = outgoing - v1;
@@ -241,7 +335,7 @@ namespace KITN
                     for (int pass = 0; pass < 12; pass++)
                     {
                         var ejection = Eject(request.Parking.Mu, r0, v0, infinity, request.DepartureSafetyRadius);
-                        if (!ejection.Valid) return default;
+                        if (!ejection.Valid) return request.Reject("ejection_geometry");
                         double coast = ejection.Coast;
                         // Use the nearest occurrence of this point on the parking orbit.
                         if (coast > request.Parking.Period / 2) coast -= request.Parking.Period;
@@ -264,7 +358,7 @@ namespace KITN
                         // Aim at the finite SOI boundary rather than treating the asymptote as the SOI velocity.
                         infinity = RotateFromTo(infinity.Unit, escapeVelocity.Unit, desiredExit.Unit) * Math.Sqrt(infinitySquared);
                     }
-                    if (!converged) return default;
+                    if (!converged) return request.Reject("ejection_convergence");
                     duration = arrivalTime - burnTime;
                 }
                 else
@@ -279,10 +373,17 @@ namespace KITN
                     departureDv = outgoing - v1;
                 }
                 double capture = CaptureDv(request.TargetMu, request.TargetRadius + request.PeriapsisAltitude, excess.Length);
+                // Native prediction can request a higher transfer apocenter or safer pericenter on the next search.
+                double transferH2 = LandingVector.Cross(transferPosition, outgoing).LengthSquared;
+                double transferE = (LandingVector.Cross(outgoing, LandingVector.Cross(transferPosition, outgoing)) / request.CentralMu - transferPosition.Unit).Length;
+                double transferInverseAxis = 2 / transferPosition.Length - outgoing.LengthSquared / request.CentralMu;
+                if (!bestEffort && request.MinimumTransferApoapsis > 0 && transferInverseAxis > 0
+                    && (1 + transferE) / transferInverseAxis < request.MinimumTransferApoapsis) return request.Reject("transfer_apoapsis");
+                if (!bestEffort && request.MinimumTransferPeriapsis > 0 && transferH2 / request.CentralMu / (1 + transferE) < request.MinimumTransferPeriapsis) return request.Reject("transfer_periapsis");
                 // Reject transfer orbits that pass through the central body on a direct moon transfer.
-                if (!request.Ejection)
+                if (!request.Ejection && request.Refine == null)
                 {
-                    if (ReturnsBeforeEncounter(request.CentralMu, r1, outgoing, duration)) return default;
+                    if (!bestEffort && ReturnsBeforeEncounter(request.CentralMu, r1, outgoing, duration)) return request.Reject("return_before_encounter");
                     double h2 = LandingVector.Cross(r1, outgoing).LengthSquared;
                     double e = (LandingVector.Cross(outgoing, LandingVector.Cross(r1, outgoing)) / request.CentralMu - r1.Unit).Length;
                     if (h2 / request.CentralMu / (1 + e) < request.DepartureSafetyRadius)
@@ -290,16 +391,16 @@ namespace KITN
                         var transferOrbit = new TransferOrbit(request.CentralMu, departure, r1, outgoing);
                         bool futurePeriapsis = transferOrbit.Valid ? transferOrbit.TimeToPeriapsis(departure) <= duration
                             : LandingVector.Dot(r1, outgoing) < 0;
-                        if (futurePeriapsis) return default;
+                        if (futurePeriapsis) return request.Reject("central_impact");
                     }
                 }
                 foreach (var excluded in request.ExcludedWindows)
-                    if (excluded.Contains(burnTime, duration)) return default;
+                    if (excluded.Contains(burnTime, duration) && !(bestEffort && excluded.AllowBestEffort)) return request.Reject("excluded_window");
                 return new TransferSolution(burnTime, duration, burnPosition, departureDv, excess, capture,
-                    Escapes(request.CentralMu, transferPosition, outgoing, request.CentralSoi));
+                    Escapes(request.CentralMu, transferPosition, outgoing, request.CentralSoi), bestEffort);
             }
             catch (Exception ex) when (ex is ArgumentException || ex is ArithmeticException || ex.GetType() == typeof(Exception))
-            { return default; }
+            { return request.Reject("lambert_failure"); }
         }
 
         public static double CaptureDv(double mu, double periapsisRadius, double excess)

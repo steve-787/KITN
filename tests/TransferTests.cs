@@ -90,15 +90,18 @@ internal static class TransferTests
         grid.Cells[0] = Cell(10, 100, 100, true);
         grid.Cells[1] = Cell(40, 120, 2000, false);
         grid.Cells[2] = Cell(80, 180, 1500, false);
-        Check(grid.Best(false) == 2, "Cheap escape displaces a bound lowest-delta-v transfer");
+        Check(grid.Best(false) == 0 && grid.Pick(false, false, 2500, 0).Departure == 10,
+            "Lowest delta-v ignores the actual cheaper feasible transfer");
         Check(grid.Earliest(false, 2500) == 1, "Early escape displaces an affordable bound transfer");
-        Check(grid.Preferred(0, 0) == 1, "Porkchop click on an escape does not choose the nearest bound window");
-        Check(grid.Preferred(2, 0) == 2, "A bound Porkchop choice was changed");
+        Check(grid.Available(0, 0) && grid.Available(2, 0), "Manual selection blocks a valid escape or bound cell");
         Check(grid.Earliest(false, 500) == 0, "Necessary escape under the departure budget was rejected");
         grid.Cells[1] = grid.Cells[2] = default;
-        Check(grid.Best(true) == 0 && grid.Preferred(0, 0) == 0, "Only possible escape is unavailable");
+        Check(grid.Best(true) == 0 && grid.Available(0, 0), "Only possible escape is unavailable");
         grid.Cells[1] = Cell(5, 100, 2000, false);
-        Check(grid.Best(false, 6) == 0 && grid.Preferred(0, 6) == 0, "Expired bound window blocks the remaining escape");
+        Check(grid.Best(false, 6) == 0 && grid.Available(0, 6) && !grid.Available(1, 6), "Expired bound window blocks the remaining escape");
+        var excluded = new[] { new TransferWindowExclusion(10, 100, 1, 1) };
+        Check(!grid.Available(0, 6, excluded) && grid.Best(false, 6, excluded) == -1 && grid.Earliest(false, 1000, 6, excluded) == -1,
+            "A previously rejected window can be selected manually or automatically");
 
         const double mu = 3.986004418e14, radius = 7e6;
         var r = new LandingVector(radius, 0, 0);
@@ -128,9 +131,25 @@ internal static class TransferTests
         var replanned = TransferMath.Search(request, CancellationToken.None);
         Check(replanned.Best(true) >= 0, "Rejecting one unsafe window destroys every alternative");
         foreach (var cell in replanned.Cells)
-            Check(!cell.Valid || !request.ExcludedWindows[0].Contains(cell.Departure, cell.Duration), "Automatic replanning reuses a rejected transfer window");
+            Check(!cell.Valid || !request.ExcludedWindows[0].Contains(cell.Departure, cell.Duration), "Requested replanning reuses a rejected transfer window");
         Check(new TransferWindowExclusion(100, 200, 5, 10).Contains(103, 207), "Nearby unsafe windows are not excluded");
         Check(!new TransferWindowExclusion(100, 200, 5, 10).Contains(106, 207), "An unrelated departure window is excluded");
+        request.MinimumTransferApoapsis = 500e6;
+        request.MinimumTransferPeriapsis = 6.9e6;
+        var adjusted = TransferMath.Search(request, CancellationToken.None);
+        Check(adjusted.Best(true) >= 0, "Correcting transfer apsides destroys all reachable alternatives");
+        foreach (var cell in adjusted.Cells)
+        {
+            if (!cell.Valid) continue;
+            request.Parking.State(cell.Departure, out var position, out var before);
+            var after = before + cell.DeltaV;
+            var orbit = new TransferOrbit(request.CentralMu, cell.Departure, position, after);
+            Check(!orbit.Valid || orbit.Apoapsis >= request.MinimumTransferApoapsis, "Replanned bound transfer ignores the required apoapsis reach");
+            var h = LandingVector.Cross(position, after);
+            double eccentricity = (LandingVector.Cross(after, h) / request.CentralMu - position.Unit).Length;
+            Check(h.LengthSquared / request.CentralMu / (1 + eccentricity) >= request.MinimumTransferPeriapsis,
+                "Replanned transfer ignores the corrected periapsis limit");
+        }
     }
 
     internal static TransferRequest SampleRequest()
@@ -145,6 +164,41 @@ internal static class TransferTests
             Earliest = 300, Latest = 25000, MinimumDuration = 180000, MaximumDuration = 750000,
             Width = 24, Height = 24, IncludeCapture = true
         };
+    }
+
+    public static void BestEffortFallback()
+    {
+        var request = SampleRequest(); request.UseBestEffortFallback = true;
+        var safe = TransferMath.Search(request, CancellationToken.None);
+        Check(safe.Best(true) >= 0 && safe.Cells.All(cell => !cell.Valid || !cell.BestEffort), "Best-effort routes replace available non-returning transfers");
+        request.ExcludedWindows = new[] { new TransferWindowExclusion((request.Earliest + request.Latest) / 2,
+            (request.MinimumDuration + request.MaximumDuration) / 2, request.Latest - request.Earliest,
+            request.MaximumDuration - request.MinimumDuration, true) };
+        var progress = new List<int>();
+        var fallback = TransferMath.Search(request, CancellationToken.None, value => progress.Add(value));
+        int selected = fallback.Best(true);
+        Check(selected >= 0 && fallback.Cells[selected].BestEffort && fallback.Available(selected, 0, request.ExcludedWindows),
+            "No fallback can be selected after all non-returning native windows fail");
+        Check(progress[^1] == 100 && progress.Zip(progress.Skip(1)).All(pair => pair.First <= pair.Second), "The fallback pass resets search progress and causes UI status to jump");
+        request.ExcludedWindows = new[] { new TransferWindowExclusion((request.Earliest + request.Latest) / 2,
+            (request.MinimumDuration + request.MaximumDuration) / 2, request.Latest - request.Earliest,
+            request.MaximumDuration - request.MinimumDuration) };
+        Check(TransferMath.Search(request, CancellationToken.None).Best(true) < 0, "Fallback ignores hard impact or arrival exclusions");
+        request.ExcludedWindows = Array.Empty<TransferWindowExclusion>();
+        request.MinimumTransferPeriapsis = 7.1e6;
+        var apsisFallback = TransferMath.Search(request, CancellationToken.None);
+        Check(apsisFallback.Best(true) >= 0 && apsisFallback.Cells[apsisFallback.Best(true)].BestEffort,
+            "Impossible corrective apsis limits prevent the best available transfer from being offered");
+        request.MinimumTransferPeriapsis = 0;
+        request.Refine = (candidate, token) => candidate.BestEffort ? candidate : request.Reject("finite_burn_test");
+        var refinedFallback = TransferMath.Search(request, CancellationToken.None);
+        int refinedBest = refinedFallback.Best(true);
+        Check(refinedBest >= 0 && refinedFallback.Cells[refinedBest].BestEffort && request.Rejections["finite_burn_test"] > 0,
+            "Fallback is decided before finite-burn validation eliminates the strict candidates");
+        using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+        bool stopped = false;
+        try { TransferMath.Search(request, cancelled.Token); } catch (OperationCanceledException) { stopped = true; }
+        Check(stopped, "Cancelled fallback search still publishes a transfer");
     }
 
     public static void Search()
@@ -173,6 +227,8 @@ internal static class TransferTests
         bool rejected = false;
         try { TransferMath.Search(request, CancellationToken.None); } catch (ArgumentException) { rejected = true; }
         Check(rejected, "Invalid search bounds accepted");
+        request.MinimumDuration = 60; request.TargetSoi = double.NaN;
+        Check(!request.Valid, "Invalid target sphere of influence enters the worker");
     }
 
     public static void Interplanetary()
@@ -230,6 +286,11 @@ internal static class TransferTests
         }
         grid.Cells[4] = default;
         plot = new TransferPlotData(grid, false);
-        Check(float.IsNaN(plot.Values[4]) && plot.Contours.Count == 0, "Contours interpolate through an invalid route");
+        Check(float.IsNaN(plot.Values[4]) && plot.Contours.Count > 0 && plot.DisplayValues.All(float.IsFinite)
+            && !grid.Available(4, 0), "Filling display holes changes route validity or leaves interrupted color transitions");
+        Array.Clear(grid.Cells);
+        plot = new TransferPlotData(grid, false);
+        Check(plot.DisplayValues.All(value => value == 1) && grid.Best(false) == -1,
+            "An entirely invalid grid leaves holes or invents a selectable transfer");
     }
 }

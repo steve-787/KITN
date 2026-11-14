@@ -36,6 +36,17 @@ namespace KITN
             return null;
         }
 
+        public static double ImprovedArrivalAltitude(double requested, double mean, double terrain, double atmosphere, double predicted = double.NaN)
+        {
+            double limit = SurfaceRadius(mean, terrain);
+            if (double.IsFinite(atmosphere)) limit = Math.Max(limit, atmosphere);
+            double safeAltitude = limit - mean + 10000;
+            if (!double.IsFinite(requested) || requested < 0) requested = Math.Max(100000, safeAltitude);
+            // Compensate for the measured finite-burn shortfall rather than just repeating the minimum altitude.
+            double correction = double.IsFinite(predicted) ? Math.Max(0, safeAltitude - predicted) : 0;
+            return Math.Max(safeAltitude, requested + correction);
+        }
+
         public static bool NearbyAltitude(double currentAltitude, double distance, double radius, double soi, bool retained)
             => double.IsFinite(distance) && double.IsFinite(radius) && radius > 0 && soi > radius
                 && distance <= 2 * soi && distance > 0

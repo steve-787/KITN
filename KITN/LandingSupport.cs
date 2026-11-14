@@ -140,12 +140,12 @@ namespace KITN
             {
                 for (int batch = 0; batch < 96 && _window < DurationCount * DelayCount; batch++, _window++)
                 {
-                    double delay = _lead + (_window / DurationCount) * 120.0;
+                    double delay = _lead + (_window / DurationCount) * (_body.Settings.SearchWindowHours * 3600 / (DelayCount - 1));
                     double duration = 600 + (_window % DurationCount) * 200.0;
                     UniverseTime time = Time(_epoch + delay);
                     LandingVector position = Vector(_orbit.GetPositionCci(time)), velocity = Vector(_orbit.GetVelocityCci(time));
                     LandingVector end = LandingVector.Rotate(_padAtEpoch, _body.AngularVelocity, delay + duration).Unit
-                        * (_body.Radius + _padAltitude + LandingMath.HandoverHeight);
+                        * (_body.Radius + _padAltitude + _body.Settings.HandoverHeightM);
                     if (!LandingMath.Lambert(_body.Mu, position, end, LandingVector.Cross(position, velocity), duration, out var target)) continue;
                     double cost = (target - velocity).Length;
                     if (cost + 350 > _available || cost < 1 || target.LengthSquared >= 2 * _body.Mu / position.Length) continue;

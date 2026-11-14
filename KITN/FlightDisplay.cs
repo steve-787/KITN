@@ -13,9 +13,10 @@ namespace KITN
         public RoutePrediction Prediction { get; private set; } = new RoutePrediction();
         public AdaptiveFlightPlan LaunchPlan { get; private set; }
         public bool IsPlanning => _planning != null;
+        public bool HasCurrentPlan(LaunchProfile profile) => LaunchPlan?.RequestedSettings?.Matches(profile) == true;
         public bool CanLaunch(LaunchProfile profile) => !IsPlanning && LaunchPlan?.Success == true
             && LaunchPlan.RequestedSettings.Matches(profile);
-        public string PlanningMessage(LaunchProfile profile) => IsPlanning || LaunchPlan?.RequestedSettings?.Matches(profile) != true
+        public string PlanningMessage(LaunchProfile profile) => !HasCurrentPlan(profile)
             ? L10n.Get("planning.pending") : LaunchPlan.Message;
         public bool HasVehicle { get; private set; }
         private string _vehicleName;
@@ -36,6 +37,7 @@ namespace KITN
         private Vehicle _vehicle;
         private IParentBody _parent;
         private string _previewKey;
+        private RocketFlightModel _previewModel;
         private long _lastPreviewTick;
         private bool _planLocked;
         private Task<AdaptiveFlightPlan> _planning;
@@ -191,18 +193,24 @@ namespace KITN
             long tick = Environment.TickCount64;
             if (!force && tick - _lastPreviewTick < 750) return;
             _lastPreviewTick = tick;
-            string key = Diag.F($"{vehicle.Id}|{vehicle.Parent?.Mu}|{Math.Round(vehicle.TotalMass)}|{vehicle.Parts?.Parts.Length}|{vehicle.Parts?.SequenceList.ActiveSequence}|{Math.Round(vehicle.GetBarometricAltitude() / 10)}|{profile.TargetApoapsisKm}|{profile.TargetPeriapsisKm}|{profile.GravityTurnStartM}|{profile.GravityTurnEndM}|{profile.GravityTurnMinSpeedMps}|{profile.GravityTurnShape}|{profile.MaxPitchRateDegS}|{profile.LaunchHeadingDeg}|{profile.AutoStaging}|{profile.HotStaging}|{profile.HotStagingFuelPercent}|{profile.LaunchCountdownSeconds}|{profile.AutoTimeskipToApoapsis}");
+            string key = Diag.F($"{vehicle.Id}|{vehicle.Parent?.Mu}|{vehicle.Parts?.Parts.Length}|{vehicle.Parts?.SequenceList.ActiveSequence}|{profile.TargetApoapsisKm}|{profile.TargetPeriapsisKm}|{profile.GravityTurnStartM}|{profile.GravityTurnEndM}|{profile.GravityTurnMinSpeedMps}|{profile.GravityTurnShape}|{profile.MaxPitchRateDegS}|{profile.LaunchHeadingDeg}|{profile.AutoStaging}|{profile.HotStaging}|{profile.HotStagingFuelPercent}|{profile.LaunchCountdownSeconds}|{profile.AutoTimeskipToApoapsis}");
             try
             {
                 // A rebuild can keep the same mass and part count. Read an isolated snapshot
                 // every 750 ms, then reuse the plan only if its actual performance matches.
                 RocketFlightModel model = RocketSnapshotReader.Read(vehicle, profile, key);
+                var orbit = vehicle.Orbit;
+                model.StableOrbit = orbit?.IsBound() == true && orbit.Periapsis > Math.Max(vehicle.Parent.GetNearSurfaceRadius(), vehicle.Parent.GetAtmosphereRadius());
+                if (model.StableOrbit)
+                { model.OrbitPeriapsis = orbit.Periapsis; model.OrbitApoapsis = orbit.Apoapsis; model.OrbitInclination = orbit.Inclination; }
                 string performanceKey = key + Diag.F($"|{model.ErrorKey}|{model.HasFlightComputer}|{model.HasSteering}|{model.MinimumThrottle:F4}|{model.AtmosphericThrustRatio:F3}|{model.AttitudeAccelerationDegS2:F2}");
                 foreach (RouteBurnPhase p in model.Phases)
                     performanceKey += Diag.F($"|{p.Thrust:F0},{p.MassFlow:F3},{p.StartMass:F1},{p.FullThrottleSeconds:F3},{p.StartsStage}");
-                if (performanceKey == _previewKey) return;
-                CancelPlanning(); _previewKey = model.Fingerprint = performanceKey; LaunchPlan = null;
-                Prediction = new RoutePrediction { MessageKey = "planning.pending" };
+                if ((LaunchPlan != null || IsPlanning) && key == _previewKey && FlightPreviewCache.Equivalent(_previewModel, model, force)) return;
+                bool retainDisplay = key == _previewKey && HasCurrentPlan(profile);
+                CancelPlanning(); _previewKey = key; _previewModel = model; model.Fingerprint = performanceKey;
+                if (!retainDisplay)
+                { LaunchPlan = null; Prediction = new RoutePrediction { MessageKey = "planning.pending" }; }
                 FlightPlanSettings settings = FlightPlanSettings.Capture(profile);
                 Diag.Info("FLIGHT_PLAN", Diag.F($"event=planning vehicle=\"{vehicle.Id}\" mass_kg={vehicle.TotalMass:F3} phases={model.Phases.Length} atmosphere_thrust_ratio={model.AtmosphericThrustRatio:F3} attitude_acceleration_deg_s2={model.AttitudeAccelerationDegS2:F3} has_computer={model.HasFlightComputer} has_steering={model.HasSteering}"));
                 for (int i = 0; i < model.Phases.Length; i++)

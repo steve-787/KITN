@@ -4,6 +4,9 @@ using KITN;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Oberth results retain an independent normal Porkchop without recalculation", TransferOptimizationTests.OberthPorkchop),
+    ("Independent widget visibility, themes and frame settings migrate and persist", UiExperienceTests.WidgetPersistence),
+    ("Flight UI stays hidden in menus, builder and scenes without rockets", UiExperienceTests.FlightSceneVisibility),
     ("CSV round-trip under German and English cultures", CsvRoundTrip),
     ("Previous sessions stay readable and UTF-8 has no BOM", SessionPreservation),
     ("Rotation keeps three archives and a CSV header in every file", BoundedRotation),
@@ -37,6 +40,7 @@ var tests = new (string Name, Action Run)[]
     ("Route preview responds to orbit targets and turn settings", FlightDisplayTests.PreviewProfile),
     ("Route preview respects finite fuel and manual staging", FlightDisplayTests.PreviewFuel),
     ("Adaptive flight plans reach LEO for rebuilt, heavier, lighter and lower-thrust rockets", AdaptivePlanningTests.RocketVariants),
+    ("Flight preview ignores orbital phase and tiny RCS changes but detects meaningful changes and verifies launch", AdaptivePlanningTests.PreviewCache),
     ("Unflyable rockets report missing thrust, fuel, control or automatic staging", AdaptivePlanningTests.FailureReasons),
     ("The logged safe low orbit coasts to AP while suborbital descent still captures immediately", AdaptivePlanningTests.LoggedSafeCoast),
     ("Adaptive guidance handles phased thrust, delayed TVC, minimum throttle and drag changes", AdaptiveFlightSimulation.RocketControl),
@@ -62,17 +66,23 @@ var tests = new (string Name, Action Run)[]
     ("Transfer ephemerides preserve eccentric, inclined and retrograde orbits", TransferTests.Ephemerides),
     ("Parking-orbit ejections reach the requested hyperbolic excess and burn location", TransferTests.Ejections),
     ("Porkchop selection honors capture costs, departure budget and invalid cells", TransferTests.Selection),
-    ("Transfer windows prefer bound trajectories and retain necessary escape alternatives", TransferTests.EscapePreference),
+    ("Lowest delta-v chooses actual cost while earliest retains affordable bound preference", TransferTests.EscapePreference),
+    ("Lowest delta-v refines multiple minima between grid samples", TransferOptimizationTests.Minimum),
+    ("Unpowered gravity assists conserve energy and find safe transfer encounters", TransferOptimizationTests.GravityAssist),
+    ("Earth Oberth search uses actual periapsis windows and rejects unavailable passages", TransferOptimizationTests.Oberth),
     ("Transfer search rejects early fallback and replans outside rejected windows", TransferTests.ReturnAndReplanning),
+    ("Transfer search uses best-effort routes only after non-returning options are exhausted", TransferTests.BestEffortFallback),
     ("Transfer search reaches moving targets and settles cancellation and invalid windows", TransferTests.Search),
     ("Interplanetary transfers match Lambert velocities at the finite sphere of influence", TransferTests.Interplanetary),
-    ("Moon transfer windows resolve orbital phase and contours preserve invalid regions", TransferTests.Porkchop),
+    ("Porkchop colors and contours fill invalid regions without enabling unsafe selection", TransferTests.Porkchop),
     ("Transfer ignition rejects warp, angular inertia, misalignment and missed departure", TransferSafetyTests.Ignition),
     ("Arrival limits distinguish airless terrain and atmospheres; altitude follows nearby bodies", TransferSafetyTests.Arrival),
     ("Capture nodes circularize inclined and retrograde lunar arrival orbits", TransferSafetyTests.Capture),
     ("Atmospheric return targeting corrects the predicted landing footprint", LandingTests.AtmosphericTarget),
     ("Powered descent brakes vertical motion and converges on a rotating landing pad", LandingTests.Descent),
     ("Atmospheric return and finite-fuel landing tolerate engine minimums and attitude delay", LandingTests.FullReturn),
+    ("Customized landing profiles handle different masses, thrust, turn rates and fuel budgets", LandingTests.CustomizedReturns),
+    ("Landing settings persist, migrate and preserve corrupt files", LandingSettingsTests.Persistence),
     ("Landing confirmation requires real sustained contact inside the selected pad", LandingTests.Contact),
     ("Landing logs retain a stable schema and distinguish control from mission time", LandingTests.Telemetry),
     ("Empty side boosters confirm depletion independently of the main rocket", BoosterSeparationTests.EmptyBoosters),
@@ -86,7 +96,7 @@ var tests = new (string Name, Action Run)[]
     ("Game translations override fallbacks while widget IDs remain stable", LocalizationTests.NativeOverridesAndIds)
 };
 int failures = 0;
-foreach (var test in tests)
+foreach (var test in tests.Where(test => args.Length == 0 || args.Any(filter => test.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))))
 {
     try { test.Run(); Console.WriteLine("PASS " + test.Name); }
     catch (Exception ex) { failures++; Console.Error.WriteLine("FAIL " + test.Name + ": " + ex); }
@@ -324,10 +334,10 @@ static void ApoapsisGuard()
 static void RecordedFlight()
 {
     string path = @"C:\Users\karst\Documents\My Games\Kitten Space Agency\mods\KITN\kitn_telemetry.csv";
-    if (!File.Exists(path)) { Console.WriteLine("SKIP recorded flight: no local telemetry"); return; }
+    string fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "recorded-ascent-20261113.csv");
     int tested = 0;
-    // A transfer can rotate all ascent samples out of the current log.
-    foreach (string recording in new[] { path, path + ".1", path + ".2", path + ".3" })
+    // Preserve real recorded regression samples independently of live telemetry rotation.
+    foreach (string recording in new[] { fixture, path, path + ".1", path + ".2", path + ".3" })
     {
         if (!File.Exists(recording)) continue;
         using var file = new StreamReader(recording);

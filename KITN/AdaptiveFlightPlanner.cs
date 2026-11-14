@@ -12,6 +12,8 @@ namespace KITN
         public double AtmosphericThrustRatio = 1, AttitudeAccelerationDegS2 = 5;
         public bool HasFlightComputer = true, HasSteering = true;
         public string Fingerprint = null, ErrorKey = null;
+        public bool StableOrbit;
+        public double OrbitPeriapsis, OrbitApoapsis, OrbitInclination;
     }
 
     internal sealed class AdaptiveFlightPlan

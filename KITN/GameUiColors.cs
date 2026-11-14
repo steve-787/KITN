@@ -9,6 +9,8 @@ namespace KITN
         public static float4 Label => Unpack(ConsoleStyle.TextLabelU32);
         public static float4 Muted => Unpack(ConsoleStyle.TextMutedU32);
         public static float4 Pending => Unpack(ConsoleStyle.PendingU32);
+        public static uint AccentU32 => ConsoleStyle.PendingU32;
+        public static float4 Accent => Unpack(AccentU32);
         public static float4 Panel => Unpack(ConsoleStyle.PanelU32);
         public static float4 Inset => Unpack(ConsoleStyle.InsetU32);
         public static float4 Hairline => Unpack(ConsoleStyle.HairlineU32);

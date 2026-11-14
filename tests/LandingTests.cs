@@ -92,21 +92,43 @@ internal static class LandingTests
         SimulateReturn(2400000, 0.2, 6, 8, "retrograde orbit", -1);
     }
 
-    private static void SimulateReturn(double thrust, double minimumThrottle, int delayFrames, double slewRate, string name, double orbitDirection = 1)
+    public static void CustomizedReturns()
+    {
+        SimulateReturn(2400000, 0.2, 8, 6, "gentle heavy return", 1,
+            new LandingSettings { TouchdownSpeedMps = 0.3f, BrakingMargin = 1.8f, HandoverHeightM = 8000,
+                TerminalHorizonSeconds = 20, MaximumTiltDeg = 35, MaximumTurnRateDegS = 6, ReservePercent = 60, ReserveExtraMps = 500 }, 90000);
+        SimulateReturn(4800000, 0.35, 8, 10, "fast large rocket", 1,
+            new LandingSettings { TouchdownSpeedMps = 0.8f, BrakingMargin = 1.3f, MaximumTiltDeg = 60,
+                MaximumTurnRateDegS = 10, ReservePercent = 50 }, 120000);
+        SimulateReturn(1200000, 0.2, 6, 5, "lighter slow-turning rocket", -1,
+            new LandingSettings { TouchdownSpeedMps = 0.5f, MaximumTiltDeg = 45, MaximumTurnRateDegS = 5,
+                TerminalHorizonSeconds = 24, ReservePercent = 60, ReserveExtraMps = 400 }, 60000);
+    }
+
+    private static void SimulateReturn(double thrust, double minimumThrottle, int delayFrames, double slewRate, string name,
+        double orbitDirection = 1, LandingSettings settings = null, double initialMass = 80000)
     {
         var body = Earth();
         body.Thrust = thrust;
+        body.Mass = initialMass;
+        double dryMass = initialMass * (settings == null ? 0.5 : 0.2);
+        if (settings != null)
+        {
+            body.Settings = settings.Copy(); body.DragArea *= settings.DragAreaScale * initialMass / 80000;
+            body.AttitudeResponseSeconds = Math.Max(settings.TerminalHorizonSeconds, 90 / settings.MaximumTurnRateDegS * 1.2);
+        }
         var position = new LandingVector(Radius + 200000, 0, 0);
         var pad = new LandingVector(Math.Cos(1.7), orbitDirection * Math.Sin(1.7), 0) * Radius;
         double transferSeconds = orbitDirection > 0 ? 1500 : 1300;
-        var end = LandingVector.Rotate(pad, body.AngularVelocity, transferSeconds).Unit * (Radius + LandingMath.HandoverHeight);
+        var end = LandingVector.Rotate(pad, body.AngularVelocity, transferSeconds).Unit * (Radius + body.Settings.HandoverHeightM);
         Check(LandingMath.Lambert(Mu, position, end, new LandingVector(0, 0, orbitDirection), transferSeconds, out var seed), "No return seed");
         var originalVelocity = new LandingVector(0, orbitDirection * Math.Sqrt(Mu / position.Length), 0);
         Check(LandingMath.TargetReturn(body, position, originalVelocity, seed, pad, 0, 3000, out var velocity, out var prediction), "No atmospheric return target");
         double reserve = LandingMath.LandingReserve(body, prediction);
         double initialDeltaV = (velocity - originalVelocity).Length;
         const double exhaust = 3000;
-        Check(initialDeltaV + reserve <= LandingMath.AvailableDeltaV(body.Mass, 40000, exhaust), $"{name}: test return window has insufficient launch reserve");
+        if (settings != null) Console.WriteLine($"  configured budget: {name} dv={initialDeltaV:F1} reserve={reserve:F1} available={LandingMath.AvailableDeltaV(body.Mass, initialMass - dryMass, exhaust):F1} descent={prediction.Velocity.Length:F1}");
+        Check(initialDeltaV + reserve <= LandingMath.AvailableDeltaV(body.Mass, initialMass - dryMass, exhaust), $"{name}: test return window has insufficient launch reserve");
         body.Mass *= Math.Exp(-initialDeltaV / exhaust);
         double massBeforeLanding = body.Mass;
         double elapsed = 0;
@@ -114,7 +136,7 @@ internal static class LandingTests
         {
             double down = Math.Max(0, -LandingVector.Dot(velocity - LandingVector.Cross(body.AngularVelocity, position), position.Unit));
             double stopping = down * down / (2 * Math.Max(0.1, thrust / body.Mass - Mu / position.LengthSquared));
-            if (position.Length - Radius < Math.Max(7000, stopping * 1.5 + 8 * down + 1000)) break;
+            if (position.Length - Radius < Math.Max(body.Settings.HandoverHeightM + 2000, stopping * body.Settings.BrakingMargin + 8 * down + 1000)) break;
             LandingMath.Step(body, ref position, ref velocity, 0.5); elapsed += 0.5;
         }
         double landingStarted = elapsed;
@@ -145,11 +167,14 @@ internal static class LandingTests
             miss = LandingMath.SurfaceDistance(position, target, Radius);
             speed = (velocity - LandingVector.Cross(body.AngularVelocity, position)).Length;
             if (position.Length <= Radius) { landed = true; break; }
-            if (body.Mass <= 40000) break;
+            if (body.Mass <= dryMass) break;
         }
         double usedDeltaV = exhaust * Math.Log(massBeforeLanding / body.Mass);
-        Console.WriteLine($"  return ({name}): deorbit {initialDeltaV:F0} m/s, powered {elapsed - landingStarted:F1}s, miss {miss:F1} m, touchdown {speed:F2} m/s, landing delta-v {usedDeltaV:F0}/{reserve:F0} m/s, fuel left {body.Mass - 40000:F0} kg");
-        Check(landed && miss < 25 && speed < 1.5 && body.Mass > 40000, $"{name}: complete return misses the pad, exhausts fuel or touches down too quickly");
+        if (settings != null) Console.WriteLine($"  final vertical={LandingVector.Dot(velocity - LandingVector.Cross(body.AngularVelocity, position), position.Unit):F3} m/s horizontal={(velocity - LandingVector.Cross(body.AngularVelocity, position)).Horizontal(position.Unit).Length:F3} m/s");
+        Console.WriteLine($"  return ({name}): deorbit {initialDeltaV:F0} m/s, powered {elapsed - landingStarted:F1}s, miss {miss:F1} m, touchdown {speed:F2} m/s, landing delta-v {usedDeltaV:F0}/{reserve:F0} m/s, fuel left {body.Mass - dryMass:F0} kg");
+        Check(landed && miss < 25 && speed < 1.5 && body.Mass > dryMass, $"{name}: complete return misses the pad, exhausts fuel or touches down too quickly");
+        if (settings != null) Check(Math.Abs(LandingVector.Dot(velocity - LandingVector.Cross(body.AngularVelocity, position), position.Unit)) <= settings.TouchdownSpeedMps + 0.35,
+            $"{name}: touchdown ignores the selected speed despite minimum-throttle and attitude limits");
         Check(usedDeltaV * 1.1 <= reserve, $"{name}: return planner underestimates the landing fuel reserve");
     }
 

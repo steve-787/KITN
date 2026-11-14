@@ -53,13 +53,15 @@ namespace KITN
             _window.Layout = new PersistentWindowLayout(_uiLayout, "autopilot");
             _missionTimeWindow.Layout = new PersistentWindowLayout(_uiLayout, "mission_time");
             _window.Settings = _missionTimeWindow.Settings = _uiLayout;
+            _windowOpen = _uiLayout.MainWindowOpen;
+            _missionTimeOpen = _uiLayout.MissionTimeOpen;
             _window.Planner = _planner;
             _window.Rendezvous = _rendezvous;
             _window.Layout.Peer = _missionTimeWindow.Layout;
             _missionTimeWindow.Layout.Peer = _window.Layout;
             try
             {
-                _missionAltitude = new MissionAltitudeDisplay(_patches, () => _missionTimeOpen);
+                _missionAltitude = new MissionAltitudeDisplay(_patches, () => _missionTimeOpen && CanShowFlightUi());
                 _missionTimeWindow.Altitude = _missionAltitude;
             }
             catch (Exception ex)
@@ -68,6 +70,8 @@ namespace KITN
             }
             var presets = new FlightPresetStore(Path.Combine(modDirectory, "flight_presets.json"));
             _window.Presets = presets;
+            _planner.GravityAssists = _uiLayout.GravityAssists;
+            _landing.Settings = _uiLayout.Landing.Copy(); _landing.AutoWarp = _landing.Settings.AutoWarp;
             if (presets.Load()) Diag.Info("PRESET", $"event=loaded count={presets.Presets.Count}");
             else Diag.Error("PRESET", presets.LastError, "Loading saved flight plans failed; the file is preserved");
 
@@ -168,7 +172,6 @@ namespace KITN
                                 }
                                 _missionClock.BeginCountdown(_profile.LaunchCountdownSeconds, simulationTime);
                                 _countdownParent = vehicle.Parent;
-                                _missionTimeOpen = true;
                                 Diag.Info("COUNTDOWN", $"event=started duration_s={_profile.LaunchCountdownSeconds} vehicle=\"{vehicle.Id}\"");
                             }
                             break;
@@ -203,7 +206,6 @@ namespace KITN
                                     _missionClock.MarkLaunched(double.IsFinite(launchTime) && launchTime >= 0 && launchTime <= simulationTime ? launchTime : simulationTime);
                                     _missionClock.Advance(simulationTime);
                                 }
-                                _missionTimeOpen = true;
                             }
                             break;
                         case "landing_abort": if (_landing.IsActive) _landing.Abort(vehicle); break;
@@ -260,6 +262,15 @@ namespace KITN
         {
             if (_profile == null || _guidance == null) return;
             GameLocalization.Refresh();
+            if (!CanShowFlightUi())
+            {
+                _window.OnVisibilityChanged(false);
+                _window.Layout.Enabled = _missionTimeWindow.Layout.Enabled = false;
+                _missionAltitude?.Release();
+                SaveUiLayout();
+                return;
+            }
+            _missionTimeOpen = _uiLayout.MissionTimeOpen;
             bool windowWasOpen = _windowOpen, timerWasOpen = _missionTimeOpen;
             bool timerDrawn = false;
             _window.Layout.Enabled = _windowOpen;
@@ -270,9 +281,10 @@ namespace KITN
                 {
                     string action = _window.Draw(ref _windowOpen, _profile, _guidance, _flightDisplay,
                         _missionClock, _physicsHook != null, _pendingAction != null, _landing);
-                    if (action == "timer") _missionTimeOpen = !_missionTimeOpen;
-                    else if (_pendingAction == null && action != null) _pendingAction = action;
+                    if (_pendingAction == null && action != null) _pendingAction = action;
                 }
+                else if (LauncherShortcut.Draw()) _windowOpen = true;
+                _missionTimeOpen = _uiLayout.MissionTimeOpen;
                 if (_missionTimeOpen)
                 {
                     _missionTimeWindow.Layout.Enabled = true;
@@ -288,6 +300,9 @@ namespace KITN
             }
             finally
             {
+                _window.OnVisibilityChanged(_windowOpen);
+                _uiLayout.SetMainWindowOpen(_windowOpen, Environment.TickCount64);
+                _uiLayout.SetMissionTimeOpen(_missionTimeOpen, Environment.TickCount64);
                 if (!_missionTimeOpen || !timerDrawn) _missionAltitude?.Release();
                 _window.Layout.Enabled = _windowOpen;
                 _missionTimeWindow.Layout.Enabled = _missionTimeOpen && timerDrawn;
@@ -295,6 +310,9 @@ namespace KITN
                 SaveUiLayout((windowWasOpen && !_windowOpen) || (timerWasOpen && !_missionTimeOpen));
             }
         }
+
+        internal static bool CanShowFlightUi() => FlightUiVisibility.ShouldShow(
+            Program.IsLoaded, Program.IsEditorOpen, Program.ControlledVehicle != null && Program.ControlledVehicle.Parent != null);
 
         private void SaveUiLayout(bool force = false)
         {

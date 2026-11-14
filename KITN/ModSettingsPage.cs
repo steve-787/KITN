@@ -1,125 +1,98 @@
 using System;
+using System.Diagnostics;
 using Brutal.ImGuiApi;
 using Brutal.Numerics;
 using KSA;
 
 namespace KITN
 {
-    /// <summary>General mod preferences. Each category owns its controls; theme choices stay in a scrolling dropdown.</summary>
+    /// <summary>Scrollable categories and a data-driven widget list leave room for future preferences.</summary>
     internal sealed class ModSettingsPage
     {
-        private readonly struct ThemeChoice
-        {
-            public readonly UiTheme Theme;
-            public readonly string NameKey, DescriptionKey;
-            public ThemeChoice(UiTheme theme, string nameKey, string descriptionKey)
-            { Theme = theme; NameKey = nameKey; DescriptionKey = descriptionKey; }
-        }
-
-        // Adding a theme adds one entry here, without changing the page's size or layout.
-        private static readonly ThemeChoice[] Themes =
-        {
-            new ThemeChoice(UiTheme.Retro, "settings.retro", "settings.retro_hint"),
-            new ThemeChoice(UiTheme.Modern, "settings.modern", "settings.modern_hint")
-        };
+        private static readonly ModPage[] Widgets = { new ModPage("settings.instruments", "timer") };
+        private static readonly string[] WidgetIds = { "mission_time" };
+        private static readonly UiTheme[] Themes = Enum.GetValues<UiTheme>();
 
         public bool Draw(UiLayoutStore settings)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
+            UiIcons.Text("settings", L10n.Get("settings.title"), GameUiColors.Text);
             ImGui.Dummy(new float2(0, 6 * scale));
-            ConsoleStyle.PushLabelFont(1.1f);
-            try { ImGui.TextColored(GameUiColors.Text, L10n.Get("settings.title")); }
-            finally { ConsoleStyle.PopFont(); }
+            ImGui.BeginDisabled(settings?.IsLoaded != true);
+            try
+            {
+                if (ImGui.CollapsingHeader(L10n.Get("settings.widgets") + "###settings-widgets", ImGuiTreeNodeFlags.DefaultOpen))
+                    for (int i = 0; i < Widgets.Length; i++) DrawWidget(settings, WidgetIds[i], Widgets[i]);
+                ImGui.Dummy(new float2(0, 6 * scale));
+                if (ImGui.CollapsingHeader(L10n.Get("settings.control") + "###settings-control", ImGuiTreeNodeFlags.DefaultOpen))
+                {
+                    ConsoleWidgets.BeginRow(L10n.Get("settings.allow_rcs").AsSpan());
+                    try
+                    {
+                        bool allowed = settings?.AllowRcs ?? true;
+                        if (ConsoleWidgets.Checkbox("allow-rcs".AsSpan(), ref allowed, false)) settings?.SetAllowRcs(allowed, Environment.TickCount64);
+                        ModWindowStyle.Hint(L10n.Get("settings.allow_rcs_hint"));
+                    }
+                    finally { ConsoleWidgets.EndRow(); }
+                }
+            }
+            finally { ImGui.EndDisabled(); }
             ImGui.Dummy(new float2(0, 8 * scale));
-            Appearance(settings);
-            ImGui.Dummy(new float2(0, 12 * scale));
-            Control(settings);
-            ImGui.Dummy(new float2(0, 12 * scale));
-            ImGui.Separator();
-            bool diagnostics = ConsoleWidgets.Button(L10n.Get("diagnostics.open").AsSpan(), "diagnostics.open".AsSpan(), float2.Zero);
-            // Future categories are drawn here, inside the parent's scrolling settings page.
-            ImGui.Dummy(new float2(0, 12 * scale));
-            ImGui.Separator();
-            ImGui.PushStyleColor(ImGuiCol.Text, GameUiColors.Muted);
-            try { ImGui.TextWrapped(L10n.Get("settings.alignment_hint")); }
-            finally { ImGui.PopStyleColor(); }
+            bool diagnostics = UiIcons.Button("diagnostics.open");
+            ImGui.Dummy(new float2(0, 8 * scale));
             if (settings?.IsLoaded == false)
             {
-                ImGui.TextWrapped(L10n.Get("settings.load_failed"));
-                if (ConsoleWidgets.Button(L10n.Get("settings.retry").AsSpan(), "settings.retry".AsSpan(), float2.Zero)) settings.Load();
+                UiIcons.Text("circle-alert", L10n.Get("settings.load_failed"), GameUiColors.Pending);
+                if (UiIcons.Button("settings.retry")) settings.Load();
             }
-            else if (settings?.LastError != null)
-                ImGui.TextWrapped(L10n.Get("settings.save_failed"));
-            else ImGui.TextColored(GameUiColors.Muted, L10n.Get(settings?.IsDirty == true ? "settings.saving" : "settings.saved"));
+            else UiIcons.Text(settings?.LastError != null ? "circle-alert" : "info",
+                L10n.Get(settings?.LastError != null ? "settings.save_failed" : settings?.IsDirty == true ? "settings.saving" : "settings.saved"), GameUiColors.Muted);
+            float remaining = ImGui.GetContentRegionAvail().Y;
+            ImGui.Dummy(new float2(0, Math.Max(8 * scale, remaining - 44 * scale)));
+            ImGui.Separator();
+            UiIcons.Text("github", "steve-787/KITN", GameUiColors.Muted);
+            if (ImGui.IsItemClicked()) Process.Start(new ProcessStartInfo("https://github.com/steve-787/KITN") { UseShellExecute = true });
+            ModWindowStyle.Hint("GitHub · https://github.com/steve-787/KITN");
             return diagnostics;
         }
 
-        private static void Control(UiLayoutStore settings)
+        private static void DrawWidget(UiLayoutStore settings, string id, ModPage widget)
         {
-            ImGui.Separator();
-            ImGui.TextColored(GameUiColors.Label, L10n.Get("settings.control"));
-            ConsoleWidgets.BeginRow(L10n.Get("settings.allow_rcs").AsSpan());
+            ImGui.PushID(id);
             try
             {
-                bool allowed = settings?.AllowRcs ?? true;
-                ImGui.BeginDisabled(settings?.IsLoaded != true);
-                try
+                UiIcons.Text(widget.Icon, L10n.Get(widget.Key), GameUiColors.Label);
+                var prefs = settings?.Widget(id) ?? new UiWidgetPreferences();
+                bool changed = false;
+                ConsoleWidgets.BeginRow(L10n.Get("settings.widget_enabled").AsSpan());
+                try { bool enabled = prefs.Enabled; changed |= ConsoleWidgets.Checkbox("widget-enabled".AsSpan(), ref enabled, false); prefs.Enabled = enabled; }
+                finally { ConsoleWidgets.EndRow(); }
+                ImGui.TextColored(GameUiColors.Muted, L10n.Get("settings.widget_theme"));
+                ImGui.SetNextItemWidth(-1);
+                if (ImGui.BeginCombo("##mod-theme", ThemeName(prefs.Theme), ImGuiComboFlags.HeightLarge))
                 {
-                    if (ConsoleWidgets.Checkbox("allow-rcs".AsSpan(), ref allowed, false))
-                        settings?.SetAllowRcs(allowed, Environment.TickCount64);
-                    ModWindowStyle.Hint(L10n.Get("settings.allow_rcs_hint"));
-                }
-                finally { ImGui.EndDisabled(); }
-            }
-            finally { ConsoleWidgets.EndRow(); }
-        }
-
-        private static void Appearance(UiLayoutStore settings)
-        {
-            ImGui.TextColored(GameUiColors.Label, L10n.Get("settings.appearance"));
-            UiTheme selected = settings?.Theme ?? UiTheme.Retro;
-            ThemeChoice current = Array.Find(Themes, choice => choice.Theme == selected);
-            ConsoleWidgets.BeginRow(L10n.Get("settings.theme").AsSpan());
-            try
-            {
-                ImGui.BeginDisabled(settings?.IsLoaded != true);
-                try
-                {
-                    if (ConsoleWidgets.BeginComboControl("mod-theme".AsSpan(), L10n.Get(current.NameKey).AsSpan(), false))
+                    try
                     {
-                        try
+                        foreach (UiTheme theme in Themes)
                         {
-                            foreach (ThemeChoice choice in Themes)
-                            {
-                                if (ImGui.Selectable(L10n.Id(choice.NameKey), choice.Theme == selected))
-                                    settings?.SetTheme(choice.Theme, Environment.TickCount64);
-                                if (choice.Theme == selected) ImGui.SetItemDefaultFocus();
-                            }
+                            if (ImGui.Selectable(ThemeName(theme), prefs.Theme == theme))
+                            { prefs.Theme = theme; changed = true; }
+                            if (prefs.Theme == theme) ImGui.SetItemDefaultFocus();
                         }
-                        finally { ConsoleWidgets.EndComboControl(); }
                     }
+                    finally { ImGui.EndCombo(); }
                 }
-                finally { ImGui.EndDisabled(); }
-            }
-            finally { ConsoleWidgets.EndRow(); }
-            current = Array.Find(Themes, choice => choice.Theme == (settings?.Theme ?? UiTheme.Retro));
-            ImGui.PushStyleColor(ImGuiCol.Text, GameUiColors.Muted);
-            try { ImGui.TextWrapped(L10n.Get(current.DescriptionKey)); }
-            finally { ImGui.PopStyleColor(); }
-            ConsoleWidgets.BeginRow(L10n.Get("settings.auto_hide_frame").AsSpan());
-            try
-            {
-                bool autoHide = settings?.AutoHideInstrumentFrame == true;
-                ImGui.BeginDisabled(settings?.IsLoaded != true);
+                ConsoleWidgets.BeginRow(L10n.Get("settings.transparency").AsSpan());
                 try
                 {
-                    if (ConsoleWidgets.Checkbox("auto-hide-instrument-frame".AsSpan(), ref autoHide, false))
-                        settings?.SetAutoHideInstrumentFrame(autoHide, Environment.TickCount64);
+                    bool hide = prefs.AutoHideFrame; changed |= ConsoleWidgets.Checkbox("auto-hide-instrument-frame".AsSpan(), ref hide, false); prefs.AutoHideFrame = hide;
                     ModWindowStyle.Hint(L10n.Get("settings.auto_hide_frame_hint"));
                 }
-                finally { ImGui.EndDisabled(); }
+                finally { ConsoleWidgets.EndRow(); }
+                if (changed) settings?.SetWidget(id, prefs, Environment.TickCount64);
             }
-            finally { ConsoleWidgets.EndRow(); }
+            finally { ImGui.PopID(); }
         }
+        private static string ThemeName(UiTheme theme) => L10n.Get("settings." + theme.ToString().ToLowerInvariant());
     }
 }

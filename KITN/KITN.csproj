@@ -33,6 +33,14 @@
       <HintPath>$(KSAPath)\System.Console.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="System.Diagnostics.Process">
+      <HintPath>$(KSAPath)\System.Diagnostics.Process.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.ComponentModel.Primitives">
+      <HintPath>$(KSAPath)\System.ComponentModel.Primitives.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="System.Numerics.Vectors">
       <HintPath>$(KSAPath)\System.Numerics.Vectors.dll</HintPath>
       <Private>false</Private>
@@ -100,6 +108,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets/Icons/lucide.bin" LogicalName="KITN.Lucide" />
+    <EmbeddedResource Include="Assets/Icons/LICENSE" LogicalName="KITN.Lucide.LICENSE" />
+    <None Update="Assets/Icons/LICENSE" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../THIRD_PARTY_NOTICES.md" Link="THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

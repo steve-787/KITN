@@ -8,8 +8,9 @@ namespace KITN
 {
     internal sealed class AutopilotWindow : IDisposable
     {
-        private static readonly string[] TabKeys = { "tab.flight", "tab.plan", "tab.automation", "tab.rendezvous", "tab.landing", "tab.maneuver" };
-        private readonly string[] _tabs = new string[6];
+        private readonly AppNavigation _navigation = new AppNavigation();
+        private bool _homeOpen = true;
+        private bool _wasOpen;
         private static readonly float4 RouteRed = new float4(1, 0.2f, 0.25f, 1);
         private static readonly float4 White = new float4(1, 1, 1, 1);
         private ImPlotContextPtr _ownedPlotContext;
@@ -35,6 +36,9 @@ namespace KITN
             MissionClock clock, bool hookReady, bool actionPending, LandingController landing = null)
         {
             _action = null;
+            if (!open) { _wasOpen = false; return null; }
+            if (!_wasOpen) { _homeOpen = true; _settingsOpen = _diagnosticsOpen = false; }
+            _wasOpen = true;
             float scale = ConsoleStyle.EffectiveInterfaceScale;
             ImGui.SetNextWindowSizeConstraints(new float2(560, 400) * scale, new float2(1600, 1400) * scale);
             ImGuiCond sizeCondition = ImGuiCond.FirstUseEver;
@@ -45,17 +49,31 @@ namespace KITN
             try
             {
                 Layout?.Capture(scale);
+                int activePage = _settingsOpen ? (_diagnosticsOpen ? 6 : AppNavigation.Settings) : _homeOpen ? AppNavigation.Home : _tab;
+                int selectedPage = _navigation.Draw(activePage, _homeOpen && !_settingsOpen);
+                if (selectedPage != AppNavigation.NoSelection) OpenPage(selectedPage);
+                bool running = guidance.IsActive || clock.IsCountingDown || landing?.IsActive == true
+                    || Rendezvous?.IsActive == true || Planner?.IsExecuting == true;
                 if (_settingsOpen)
                 {
-                    Actions(profile, guidance, flight, clock, hookReady, actionPending, landing);
-                    string back = _diagnosticsOpen ? "diagnostics.back" : "settings.back";
-                    ToolbarEnd(back);
-                    if (Button(back)) { if (_diagnosticsOpen) _diagnosticsOpen = false; else _settingsOpen = false; }
+                    if (running) Actions(profile, guidance, flight, clock, hookReady, actionPending, landing);
                     ImGui.BeginChild("kitn-settings-page", new float2(0, 0));
                     try
                     {
                         if (_diagnosticsOpen) DiagnosticsTab(profile, flight);
-                        else if (_settingsPage.Draw(Settings)) _diagnosticsOpen = true;
+                        else if (_settingsPage.Draw(Settings)) OpenPage(6);
+                    }
+                    finally { ImGui.EndChild(); }
+                    return _action;
+                }
+                if (_homeOpen)
+                {
+                    if (running) Actions(profile, guidance, flight, clock, hookReady, actionPending, landing);
+                    ImGui.BeginChild("kitn-launcher", new float2(0, 0));
+                    try
+                    {
+                        int launch = _navigation.Launcher();
+                        if (launch != AppNavigation.NoSelection) OpenPage(launch);
                     }
                     finally { ImGui.EndChild(); }
                     return _action;
@@ -63,35 +81,33 @@ namespace KITN
                 bool recovery = landing != null && (_tab == 4 || landing.IsActive);
                 bool transfer = _tab == 5;
                 bool rendezvous = _tab == 3 || Rendezvous?.IsActive == true;
-                string target = rendezvous ? Rendezvous?.TargetName ?? "—" : transfer ? (Planner?.OriginName ?? "—") + " → " + (Planner?.Target?.Id ?? "—")
+                string target = rendezvous ? Rendezvous?.TargetName ?? "—" : transfer ? (Planner?.OriginName ?? "—") + " → "
+                    + (Planner?.Selected.Flyby is TransferFlyby flyby ? flyby.Body.Id + " → " : "") + (Planner?.Target?.Id ?? "—")
                     : recovery ? landing.TargetName : $"{Format(profile.TargetPeriapsisKm)} × {Format(profile.TargetApoapsisKm)} km";
                 string phase = rendezvous ? RendezvousPage.PhaseName(Rendezvous?.Phase ?? DockingPhase.Idle) : transfer ? Planner?.IsExecuting == true ? Planner.DisplayMessage : L10n.Get(Planner?.IsSearching == true ? "transfer.calculating" : "transfer.ready")
                     : clock.IsCountingDown ? L10n.Get("clock.countdown") : recovery && !guidance.IsActive ? landing.Phase
                     : GuidancePhase(profile, guidance, flight);
+                // Status changes must not wrap the header and move every control below it.
+                float headerWidth = ImGui.GetContentRegionAvail().X;
+                float phaseWidth = Math.Min(ImGui.CalcTextSize(phase).X, headerWidth * 0.42f);
                 ImGui.BeginGroup();
                 try
                 {
                     ConsoleStyle.PushLabelFont(0.8f);
                     try { ImGui.TextColored(GameUiColors.Muted, L10n.Get(rendezvous ? "rendezvous.target" : transfer ? "transfer.route" : recovery ? "landing.target" : "readout.target_orbit")); }
                     finally { ConsoleStyle.PopFont(); }
-                    ImGui.TextColored(GameUiColors.Text, target);
+                    ImGui.TextColored(GameUiColors.Text, FitHeaderText(target, headerWidth - phaseWidth - 8 * scale));
                 }
                 finally { ImGui.EndGroup(); }
                 ModWindowStyle.Hint(target);
                 ImGui.SameLine();
-                float phaseWidth = ImGui.CalcTextSize(phase).X;
-                if (ImGui.GetContentRegionAvail().X < phaseWidth) ImGui.NewLine();
                 ImGui.SetCursorPosX(Math.Max(ImGui.GetCursorPosX(), ImGui.GetWindowSize().X - phaseWidth - 16 * scale));
-                ImGui.TextColored(clock.IsCountingDown || flight.IsPlanning || landing?.IsActive == true ? GameUiColors.Pending : GameUiColors.Muted, phase);
-                ModWindowStyle.Hint(L10n.Get("readout.phase"));
+                bool phasePending = rendezvous ? Rendezvous?.IsActive == true
+                    : transfer ? Planner?.IsSearching == true || Planner?.IsChecking == true || Planner?.IsExecuting == true
+                    : clock.IsCountingDown || landing?.IsActive == true || (flight.IsPlanning && !flight.HasCurrentPlan(profile));
+                ImGui.TextColored(phasePending ? GameUiColors.Pending : GameUiColors.Muted, FitHeaderText(phase, phaseWidth));
+                ModWindowStyle.Hint(phase);
                 Actions(profile, guidance, flight, clock, hookReady, actionPending, landing);
-                ToolbarEnd("settings.open");
-                if (Button("settings.open")) _settingsOpen = true;
-                ModWindowStyle.Hint(L10n.Get("settings.open_hint"));
-                ImGui.Dummy(new float2(0, 2 * scale));
-                for (int i = 0; i < _tabs.Length; i++) _tabs[i] = L10n.Get(TabKeys[i]);
-                int selected = Navigation();
-                if (selected >= 0) _tab = selected;
                 ImGui.Dummy(new float2(0, 4 * scale));
                 // Only the page scrolls: navigation and abort controls always remain accessible.
                 ImGui.BeginChild("kitn-page", new float2(0, 0));
@@ -109,6 +125,7 @@ namespace KITN
                             break;
                         case 4: LandingTab(landing, guidance, clock); break;
                         case 5:
+                            _transferPage.Settings = Settings;
                             string transferAction = _transferPage.Draw(Planner, locked || actionPending);
                             if (transferAction != null) _action = transferAction;
                             break;
@@ -120,77 +137,26 @@ namespace KITN
             return _action;
         }
 
-        private static void ToolbarEnd(string key)
+        public void OnVisibilityChanged(bool visible)
         {
-            float scale = ConsoleStyle.EffectiveInterfaceScale;
-            float width = ImGui.CalcTextSize(L10n.Get(key)).X + 24 * scale;
-            ImGui.SameLine();
-            if (ImGui.GetContentRegionAvail().X < width) ImGui.NewLine();
-            ImGui.SetCursorPosX(Math.Max(ImGui.GetCursorPosX(), ImGui.GetWindowSize().X - width - 16 * scale));
+            if (!visible) _wasOpen = false;
         }
 
-        private int Navigation()
+        private void OpenPage(int page)
         {
-            float widest = 0, totalTextWidth = 0;
-            ConsoleStyle.PushLabelFont();
-            try
-            {
-                foreach (string label in _tabs)
-                {
-                    float labelWidth = ImGui.CalcTextSize(label).X;
-                    widest = Math.Max(widest, labelWidth);
-                    totalTextWidth += labelWidth;
-                }
-            }
-            finally { ConsoleStyle.PopFont(); }
-            float width = ImGui.GetContentRegionAvail().X;
-            float padding = 12 * ConsoleStyle.EffectiveInterfaceScale;
-            if ((widest + padding) * _tabs.Length <= width)
-                return ConsoleWidgets.Segmented("autopilot-tabs".AsSpan(), _tabs, _tab);
+            _homeOpen = page == AppNavigation.Home;
+            _settingsOpen = page == AppNavigation.Settings || page == 6;
+            _diagnosticsOpen = page == 6;
+            if (page >= 0 && page < 6) _tab = page;
+        }
 
-            // Keep all tabs visible at narrow widths, giving longer labels more room.
-            float fontScale = Math.Min(1, Math.Max(0.5f, (width - padding * _tabs.Length) / Math.Max(1, totalTextWidth)));
-            float height = ConsoleStyle.FrameHeightPx;
-            float2 origin = ImGui.GetCursorScreenPos();
-            var draw = ImGui.GetWindowDrawList();
-            draw.AddRectFilled(origin, origin + new float2(width, height), ConsoleStyle.ApplyAlpha(ConsoleStyle.InsetU32), ConsoleStyle.FrameRoundingPx);
-            draw.AddRect(origin, origin + new float2(width, height), ConsoleStyle.ApplyAlpha(ConsoleStyle.FrameU32), ConsoleStyle.FrameRoundingPx,
-                ImDrawFlags.None, ConsoleStyle.WindowBorderThicknessPx);
-            int selected = -1;
-            ConsoleStyle.PushLabelFont(fontScale);
-            try
-            {
-                Span<float> labelWidths = stackalloc float[_tabs.Length];
-                totalTextWidth = 0;
-                for (int i = 0; i < _tabs.Length; i++)
-                {
-                    labelWidths[i] = ImGui.CalcTextSize(_tabs[i]).X;
-                    totalTextWidth += labelWidths[i];
-                }
-                float extra = (width - totalTextWidth) / _tabs.Length;
-                float offset = 0;
-                for (int i = 0; i < _tabs.Length; i++)
-                {
-                    float2 position = origin + new float2(offset, 0);
-                    float tabWidth = i == _tabs.Length - 1 ? width - offset : labelWidths[i] + extra;
-                    float2 size = new float2(tabWidth, height);
-                    ImGui.SetCursorScreenPos(position);
-                    if (ImGui.InvisibleButton("autopilot-tabs##Seg" + i, size)) selected = i;
-                    bool active = i == _tab;
-                    ImDrawFlags corners = i == 0 ? ImDrawFlags.RoundCornersLeft
-                        : i == _tabs.Length - 1 ? ImDrawFlags.RoundCornersRight : ImDrawFlags.RoundCornersNone;
-                    if (active || ImGui.IsItemHovered())
-                        draw.AddRectFilled(position, position + size,
-                            ConsoleStyle.ApplyAlpha(active ? ConsoleStyle.ActiveToolU32 : ConsoleStyle.RowHoverWashU32), ConsoleStyle.FrameRoundingPx, corners);
-                    draw.AddText(position + (size - ImGui.CalcTextSize(_tabs[i])) * 0.5f,
-                        ConsoleStyle.ApplyAlpha(active ? ConsoleStyle.PanelU32 : ConsoleStyle.TextLabelU32), _tabs[i]);
-                    offset += tabWidth;
-                }
-            }
-            finally { ConsoleStyle.PopFont(); }
-            ImGui.SetCursorScreenPos(origin);
-            ImGui.Dummy(new float2(0, Math.Max(0, height - ImGui.GetStyle().ItemSpacing.Y)));
-            return selected;
+        private static string FitHeaderText(string text, float width)
+        {
+            if (ImGui.CalcTextSize(text).X <= width) return text;
+            int length = text.Length;
+            while (length > 0 && ImGui.CalcTextSize(text.Substring(0, length) + "…").X > width) length--;
+            if (length > 0 && char.IsHighSurrogate(text[length - 1])) length--;
+            return text.Substring(0, length) + "…";
         }
 
         private void Actions(LaunchProfile profile, AscentGuidance guidance, FlightDisplay flight, MissionClock clock,
@@ -227,11 +193,18 @@ namespace KITN
                 }
                 else if (_tab == 5)
                 {
-                    ImGui.BeginDisabled(Planner == null || !Planner.CanSearch || Planner.IsChecking);
+                    ImGui.BeginDisabled(Planner == null || Planner.IsChecking || (Planner.NeedsBetterRoute ? !Planner.CanImproveRoute && !Planner.IsSearching : !Planner.CanSearch));
                     try
                     {
                         if (Planner?.IsSearching == true)
                         { if (Button("transfer.cancel")) _action = "transfer_cancel"; }
+                        else if (Planner?.NeedsBetterRoute == true)
+                        {
+                            if (PrimaryButton("transfer.improve")) _action = "transfer_improve";
+                            Hint(Planner.SuggestedPeriapsisKm > 0
+                                ? L10n.Format("transfer.improve_altitude_hint", Planner.SuggestedPeriapsisKm.ToString("N1", L10n.Culture))
+                                : L10n.Get(Planner.HasTransferApsisAdjustment ? "transfer.improve_apsides_hint" : "transfer.improve_hint"));
+                        }
                         else if (PrimaryButton("transfer.calculate")) _action = "transfer_search";
                     }
                     finally { ImGui.EndDisabled(); }
@@ -262,9 +235,6 @@ namespace KITN
                 }
             }
             finally { ImGui.EndDisabled(); }
-            ImGui.SameLine();
-            if (Button("action.timer")) _action = "timer";
-            Hint(L10n.Get("action.timer_hint"));
             if (!guidance.IsActive && !clock.IsCountingDown && landing?.IsActive != true
                 && Rendezvous?.IsActive != true && Planner?.IsExecuting != true
                 && (guidance.CurrentState != AscentGuidance.AscentState.Idle || flight.Track.Count > 0 || clock.HasLaunched))
@@ -280,7 +250,7 @@ namespace KITN
             }
         }
 
-        private static void LandingTab(LandingController landing, AscentGuidance guidance, MissionClock clock)
+        private void LandingTab(LandingController landing, AscentGuidance guidance, MissionClock clock)
         {
             Section("landing.section", "landing.description");
             if (landing == null) { ImGui.TextColored(GameUiColors.Muted, L10n.Get("landing.require_vehicle")); return; }
@@ -302,7 +272,13 @@ namespace KITN
                     }
                 }
                 finally { ConsoleWidgets.EndRow(); }
+                bool previousWarp = landing.AutoWarp;
                 Checkbox("landing.auto_warp", ref landing.AutoWarp, "landing.auto_warp_hint");
+                if (previousWarp != landing.AutoWarp)
+                {
+                    var options = landing.Settings.Copy(); options.AutoWarp = landing.AutoWarp;
+                    landing.Settings = options; Settings?.SetLanding(options, Environment.TickCount64);
+                }
             }
             finally { ImGui.EndDisabled(); }
             if (landing.Pads.Count > 0)
@@ -314,6 +290,7 @@ namespace KITN
             ConsoleWidgets.Readout(L10n.Get("landing.available_dv").AsSpan(), $"{Format(landing.AvailableDeltaV, "N0")} m/s".AsSpan());
             if (double.IsFinite(landing.RequiredDeltaV))
                 ConsoleWidgets.Readout(L10n.Get("landing.required_dv").AsSpan(), $"{Format(landing.RequiredDeltaV, "N0")} m/s".AsSpan());
+            LandingSettingsPage.Draw(landing, Settings, locked || Planner?.IsExecuting == true || Rendezvous?.IsActive == true);
             ConsoleWidgets.Rule();
             if (landing.IsActive || landing.State == LandingState.Landed || landing.State == LandingState.Aborted)
                 ImGui.TextWrapped(landing.Message);
@@ -422,9 +399,11 @@ namespace KITN
 
         private static string GuidancePhase(LaunchProfile profile, AscentGuidance guidance, FlightDisplay flight)
         {
-            if (guidance.CurrentState == AscentGuidance.AscentState.Idle && flight.HasVehicle && !flight.CanLaunch(profile))
-                return L10n.Get(!flight.IsPlanning && flight.LaunchPlan?.RequestedSettings?.Matches(profile) == true
-                    && !flight.LaunchPlan.Success ? "planning.phase_failed" : "planning.phase_pending");
+            if (guidance.CurrentState == AscentGuidance.AscentState.Idle && flight.HasVehicle)
+            {
+                if (!flight.HasCurrentPlan(profile)) return L10n.Get("planning.phase_pending");
+                if (!flight.LaunchPlan.Success) return L10n.Get("planning.phase_failed");
+            }
             return StateName(guidance.CurrentState);
         }
 
@@ -434,7 +413,7 @@ namespace KITN
             PresetControls(profile, locked);
             if (flight.HasVehicle)
             {
-                ImGui.PushStyleColor(ImGuiCol.Text, flight.CanLaunch(profile) ? GameUiColors.Muted : GameUiColors.Pending);
+                ImGui.PushStyleColor(ImGuiCol.Text, flight.HasCurrentPlan(profile) && flight.LaunchPlan.Success ? GameUiColors.Muted : GameUiColors.Pending);
                 try { ImGui.TextWrapped(flight.PlanningMessage(profile)); }
                 finally { ImGui.PopStyleColor(); }
             }
@@ -662,9 +641,9 @@ namespace KITN
 
         // ConsoleWidgets draws its label directly. Its separate ID argument keeps IDs out
         // of the visible text and preserves focus when the game language changes.
-        private static bool Button(string key) => ConsoleWidgets.Button(L10n.Get(key).AsSpan(), key.AsSpan(), float2.Zero);
-        private static bool PrimaryButton(string key) => ConsoleWidgets.PrimaryButton(L10n.Get(key).AsSpan(), key.AsSpan(), float2.Zero);
-        private static bool DangerButton(string key) => ConsoleWidgets.DangerButton(L10n.Get(key).AsSpan(), key.AsSpan(), float2.Zero);
+        private static bool Button(string key) => UiIcons.Button(key);
+        private static bool PrimaryButton(string key) => UiIcons.Button(key, primary: true);
+        private static bool DangerButton(string key) => UiIcons.Button(key, danger: true);
 
         private static bool ValidOrbit(LaunchProfile p) => float.IsFinite(p.TargetApoapsisKm)
             && float.IsFinite(p.TargetPeriapsisKm) && p.TargetPeriapsisKm >= 100 && p.TargetApoapsisKm >= p.TargetPeriapsisKm;

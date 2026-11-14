@@ -9,11 +9,24 @@ namespace KITN
     [JsonConverter(typeof(JsonStringEnumConverter<UiTheme>))]
     internal enum UiTheme { Retro, Modern }
 
+    internal sealed class UiWidgetPreferences
+    {
+        public bool Enabled { get; set; }
+        public UiTheme Theme { get; set; } = UiTheme.Retro;
+        public bool AutoHideFrame { get; set; }
+        [JsonIgnore] public bool IsValid => Enum.IsDefined(Theme);
+        public UiWidgetPreferences Copy() => new UiWidgetPreferences { Enabled = Enabled, Theme = Theme, AutoHideFrame = AutoHideFrame };
+    }
+
     internal sealed class UiPreferences
     {
         public UiTheme Theme { get; set; } = UiTheme.Retro;
         public bool AutoHideInstrumentFrame { get; set; }
         public bool AllowRcs { get; set; } = true;
+        public bool GravityAssists { get; set; }
+        public LandingSettings Landing { get; set; } = new LandingSettings();
+        public bool MainWindowOpen { get; set; } = true;
+        public Dictionary<string, UiWidgetPreferences> Widgets { get; set; }
     }
 
     internal sealed class UiWindowBounds
@@ -73,11 +86,17 @@ namespace KITN
         public bool IsDirty { get; private set; }
         public Exception LastError { get; private set; }
         public int WindowCount => _windows.Count;
-        public UiTheme Theme { get; private set; } = UiTheme.Retro;
-        public bool AutoHideInstrumentFrame { get; private set; }
+        private Dictionary<string, UiWidgetPreferences> _widgets = new Dictionary<string, UiWidgetPreferences>();
+        public UiTheme Theme => Widget("mission_time").Theme;
+        public bool AutoHideInstrumentFrame => Widget("mission_time").AutoHideFrame;
+        public bool MainWindowOpen { get; private set; } = true;
+        public bool MissionTimeOpen => Widget("mission_time").Enabled;
         public bool AllowRcs { get; private set; } = true;
+        public bool GravityAssists { get; private set; }
+        public LandingSettings Landing { get; private set; } = new LandingSettings();
         public UiLayoutStore(string path) { _path = Path.GetFullPath(path); }
         public UiWindowBounds Find(string id) => _windows.TryGetValue(id, out UiWindowBounds bounds) ? bounds : null;
+        public UiWidgetPreferences Widget(string id) => _widgets.TryGetValue(id, out var widget) ? widget.Copy() : new UiWidgetPreferences();
 
         public bool Load()
         {
@@ -88,13 +107,17 @@ namespace KITN
                 UiTheme theme = UiTheme.Retro;
                 bool autoHide = false;
                 bool allowRcs = true;
+                bool gravityAssists = false;
+                var landing = new LandingSettings();
+                bool mainOpen = true;
+                var widgets = new Dictionary<string, UiWidgetPreferences>();
                 if (File.Exists(_path))
                 {
                     if (new FileInfo(_path).Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     UiLayoutDocument file = JsonSerializer.Deserialize<UiLayoutDocument>(stream, Json);
                     if (file == null || file.Version != 1 || file.Windows == null || file.Windows.Count > 16
-                        || file.Settings == null || !Enum.IsDefined(file.Settings.Theme))
+                        || file.Settings == null || !Enum.IsDefined(file.Settings.Theme) || file.Settings.Landing?.IsValid != true)
                         throw new InvalidDataException("Unsupported UI layout format");
                     foreach (var window in file.Windows)
                         if (string.IsNullOrWhiteSpace(window.Key) || window.Key.Length > 80 || window.Value?.IsValid != true)
@@ -103,8 +126,26 @@ namespace KITN
                     theme = file.Settings.Theme;
                     autoHide = file.Settings.AutoHideInstrumentFrame;
                     allowRcs = file.Settings.AllowRcs;
+                    gravityAssists = file.Settings.GravityAssists;
+                    landing = file.Settings.Landing.Copy();
+                    mainOpen = file.Settings.MainWindowOpen;
+                    if (file.Settings.Widgets != null)
+                    {
+                        if (file.Settings.Widgets.Count > 32) throw new InvalidDataException("Too many widget preferences");
+                        foreach (var widget in file.Settings.Widgets)
+                        {
+                            if (string.IsNullOrWhiteSpace(widget.Key) || widget.Key.Length > 80 || widget.Value?.IsValid != true)
+                                throw new InvalidDataException("Invalid widget preferences");
+                            widgets.Add(widget.Key, widget.Value.Copy());
+                        }
+                    }
                 }
-                _windows = windows; Theme = theme; AutoHideInstrumentFrame = autoHide; AllowRcs = allowRcs;
+                // Migrate old theme/frame fields without changing saved window positions.
+                if (!widgets.ContainsKey("mission_time")) widgets.Add("mission_time", new UiWidgetPreferences { Theme = theme, AutoHideFrame = autoHide });
+                _widgets = widgets; MainWindowOpen = mainOpen;
+                _windows = windows; AllowRcs = allowRcs;
+                GravityAssists = gravityAssists;
+                Landing = landing;
                 IsLoaded = true; IsDirty = false; _retryAfterMs = 0;
                 return true;
             }
@@ -113,22 +154,56 @@ namespace KITN
 
         public bool SetTheme(UiTheme theme, long nowMs)
         {
-            if (!IsLoaded || !Enum.IsDefined(theme) || Theme == theme) return false;
-            Theme = theme; IsDirty = true; _lastChangeMs = nowMs;
-            return true;
+            var widget = Widget("mission_time"); widget.Theme = theme;
+            return SetWidget("mission_time", widget, nowMs);
         }
 
         public bool SetAutoHideInstrumentFrame(bool enabled, long nowMs)
         {
-            if (!IsLoaded || AutoHideInstrumentFrame == enabled) return false;
-            AutoHideInstrumentFrame = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            var widget = Widget("mission_time"); widget.AutoHideFrame = enabled;
+            return SetWidget("mission_time", widget, nowMs);
+        }
+
+        public bool SetWidget(string id, UiWidgetPreferences widget, long nowMs)
+        {
+            if (!IsLoaded || string.IsNullOrWhiteSpace(id) || id.Length > 80 || widget?.IsValid != true
+                || (!_widgets.ContainsKey(id) && _widgets.Count >= 32)) return false;
+            var old = Widget(id);
+            if (_widgets.ContainsKey(id) && old.Enabled == widget.Enabled && old.Theme == widget.Theme && old.AutoHideFrame == widget.AutoHideFrame) return false;
+            _widgets[id] = widget.Copy(); IsDirty = true; _lastChangeMs = nowMs;
             return true;
+        }
+
+        public bool SetMissionTimeOpen(bool enabled, long nowMs)
+        {
+            var widget = Widget("mission_time"); widget.Enabled = enabled;
+            return SetWidget("mission_time", widget, nowMs);
+        }
+
+        public bool SetMainWindowOpen(bool open, long nowMs)
+        {
+            if (!IsLoaded || MainWindowOpen == open) return false;
+            MainWindowOpen = open; IsDirty = true; _lastChangeMs = nowMs; return true;
         }
 
         public bool SetAllowRcs(bool enabled, long nowMs)
         {
             if (!IsLoaded || AllowRcs == enabled) return false;
             AllowRcs = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
+        public bool SetGravityAssists(bool enabled, long nowMs)
+        {
+            if (!IsLoaded || GravityAssists == enabled) return false;
+            GravityAssists = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
+        public bool SetLanding(LandingSettings settings, long nowMs)
+        {
+            if (!IsLoaded || settings?.IsValid != true || Landing.Matches(settings)) return false;
+            Landing = settings.Copy(); IsDirty = true; _lastChangeMs = nowMs;
             return true;
         }
 
@@ -154,7 +229,7 @@ namespace KITN
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows,
-                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs } }, Json);
+                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, GravityAssists = GravityAssists, Landing = Landing.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
                     if (stream.Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     stream.Flush(true);
                 }

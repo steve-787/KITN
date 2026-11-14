@@ -24,12 +24,19 @@ namespace KITN
         public int Progress => Volatile.Read(ref _progress);
         public TransferGrid Grid { get; private set; }
         public int SelectedIndex { get; private set; } = -1;
-        public TransferSolution Selected => Grid != null && SelectedIndex >= 0 && SelectedIndex < Grid.Cells.Length ? Grid.Cells[SelectedIndex] : default;
+        public TransferSolution Selected => Grid != null && SelectedIndex >= 0 && SelectedIndex < Grid.Cells.Length
+            ? ReferenceEquals(Grid, _selectedGrid) && _selectedSolution.Valid ? _selectedSolution : Grid.Cells[SelectedIndex] : default;
+        private TransferSolution _selectedSolution;
+        private TransferGrid _selectedGrid;
         public double Now { get; private set; }
         public double EarliestDelay = 300, SearchWindow = 86400, MinimumDuration = 3600, MaximumDuration = 86400;
         public float PeriapsisKm = 100, MaximumDv = 12000;
         public bool IncludeCapture = true, AutoWarp = true;
         public bool PreferEarliest;
+        public bool GravityAssists;
+        public bool OberthMode;
+        public bool CanSearchOberth => CanSearch && (string.Equals(_vehicle?.Parent?.Id, "Earth", StringComparison.OrdinalIgnoreCase)
+            || string.Equals((_vehicle?.Parent as Celestial)?.BodyTemplate?.Id, "Earth", StringComparison.OrdinalIgnoreCase));
         private Vehicle _vehicle, _executingVehicle;
         private IParentBody _parent;
         private CelestialSystem _system;
@@ -46,7 +53,7 @@ namespace KITN
             if (ReferenceEquals(Target, target)) return;
             Cancel(); Grid = null; SelectedIndex = -1; Target = target; _snapshot = null;
             Message = null; _lastRefresh = double.NegativeInfinity;
-            _excludedWindows.Clear(); _replanAttempts = 0;
+            _excludedWindows.Clear(); ResetRouteAdjustments();
         }
 
         public void Refresh(Vehicle vehicle, double now)
@@ -60,6 +67,7 @@ namespace KITN
                 if (!ReferenceEquals(vehicle, _vehicle) || reverted || !ReferenceEquals(Universe.CurrentSystem, _system))
                 { StopExecution(); ClearCapture(); _captureSuppressed = reverted; }
                 Cancel(); Grid = null; SelectedIndex = -1; _snapshot = null; Stale = false;
+                _excludedWindows.Clear(); ResetRouteAdjustments();
                 _vehicle = vehicle; _parent = vehicle?.Parent; _lastRefresh = double.NegativeInfinity;
                 if (!ReferenceEquals(Universe.CurrentSystem, _system)) Target = null;
                 _system = Universe.CurrentSystem;
@@ -116,22 +124,40 @@ namespace KITN
             var request = new TransferRequest
             {
                 Now = Now, CentralMu = central.Mu,
-                Parking = new TransferOrbit(vehicle.Parent.Mu, Now,
+                Parking = new TransferOrbit(vehicle.Orbit.Mu, Now,
                     Vector(state.PositionCci.Transform(_parkingToCentral)), Vector(state.VelocityCci.Transform(_parkingToCentral))),
-                Target = SnapshotOrbit(Target.Orbit), TargetMu = ((IParentBody)Target).Mu, TargetRadius = Target.MeanRadius,
+                Target = SnapshotOrbit(Target.Orbit), TargetMu = ((IParentBody)Target).Mu, TargetRadius = Target.MeanRadius, TargetSoi = Target.SphereOfInfluence,
                 DepartureSafetyRadius = Math.Max(vehicle.Parent.GetNearSurfaceRadius(), vehicle.Parent.GetAtmosphereRadius()),
                 DepartureSoi = ejection ? vehicle.Parent.SphereOfInfluence : 0,
                 CentralSoi = central.SphereOfInfluence,
-                PeriapsisAltitude = Math.Max(0, PeriapsisKm) * 1000, IncludeCapture = IncludeCapture
+                CentralSafetyRadius = Math.Max(central.GetNearSurfaceRadius(), central.GetAtmosphereRadius()),
+                GravityAssists = GravityAssists,
+                Oberth = OberthMode,
+                PeriapsisAltitude = Math.Max(0, PeriapsisKm) * 1000, IncludeCapture = IncludeCapture, UseBestEffortFallback = true
             };
             if (ejection) request.Source = SnapshotOrbit(((Celestial)vehicle.Parent).Orbit);
+            if (GravityAssists && _system != null)
+            {
+                var assists = new List<TransferBodySnapshot>();
+                foreach (var body in _system.All.OfType<Celestial>())
+                {
+                    if (ReferenceEquals(body, Target) || ReferenceEquals(body, vehicle.Parent)
+                        || !ReferenceEquals(body.Parent, central) || body.Orbit == null || !body.Orbit.IsBound()) continue;
+                    double safety = ArrivalSafetyRadius(body);
+                    if (!(body.SphereOfInfluence > safety)) continue;
+                    assists.Add(new TransferBodySnapshot(body.Id, SnapshotOrbit(body.Orbit), ((IParentBody)body).Mu,
+                        body.MeanRadius, body.SphereOfInfluence, safety));
+                }
+                assists.Sort((a, b) => StringComparer.Ordinal.Compare(a.Id, b.Id));
+                request.AssistBodies = assists.ToArray();
+            }
             return request;
         }
 
         private TransferOrbit SnapshotOrbit(Orbit orbit)
         {
             var state = orbit.GetStateVectorsAt(new UniverseTime(Now));
-            return new TransferOrbit(orbit.Parent.Mu, Now, Vector(state.PositionCci), Vector(state.VelocityCci));
+            return new TransferOrbit(orbit.Mu, Now, Vector(state.PositionCci), Vector(state.VelocityCci));
         }
 
         private void SetDefaults(TransferRequest request)
@@ -156,20 +182,35 @@ namespace KITN
                 && (v - expectedV).Length < Math.Max(1, v.Length * 0.001);
         }
 
-        public void SettingsChanged() { Cancel(); Grid = null; SelectedIndex = -1; Message = null; _excludedWindows.Clear(); _replanAttempts = 0; }
+        public void SettingsChanged() { Cancel(); Grid = null; SelectedIndex = -1; Message = null; _excludedWindows.Clear(); ResetRouteAdjustments(); }
         public void Select(int index)
         {
-            if (IsChecking || Grid == null || index < 0 || index >= Grid.Cells.Length || !Grid.Cells[index].Valid) return;
-            int preferred = Grid.Preferred(index, Now + 30);
-            if (preferred < 0) return;
-            SelectedIndex = preferred; Message = preferred != index ? "transfer.bound_preferred" : null;
+            if (IsSearching || IsChecking || IsExecuting || Grid == null || index < 0 || index >= Grid.Cells.Length || !Grid.Cells[index].Valid) return;
+            if (!Grid.Available(index, Now + 30, _excludedWindows))
+            { Message = Grid.Cells[index].Departure < Now + 30 ? "transfer.stale" : "transfer.rejected_window"; return; }
+            ClearRouteProblem();
+            _selectedGrid = null;
+            SelectedIndex = index; Message = Grid.Cells[index].BestEffort ? "transfer.fallback_selected" : Grid.Cells[index].EscapesCentral ? "transfer.escape_selected" : null;
+        }
+        public void SelectPorkchop(int index)
+        {
+            var overview = Grid?.PorkchopGrid;
+            if (overview == null) { Select(index); return; }
+            if (IsSearching || IsChecking || IsExecuting || !overview.Available(index, Now + 30, _excludedWindows)) return;
+            // Only an explicit valid plot selection replaces the selected constrained route.
+            Grid = overview; OberthMode = false;
+            Select(index);
         }
         public void SelectBest(bool earliest)
         {
-            if (Grid == null) return;
-            int index = earliest ? Grid.Earliest(IncludeCapture, MaximumDv, Now + 30) : Grid.Best(IncludeCapture, Now + 30);
-            if (index < 0) { SelectedIndex = -1; Message = earliest ? "transfer.no_early" : "transfer.no_solution"; return; }
-            Select(index);
+            if (Grid == null || IsSearching || IsChecking || IsExecuting) return;
+            var best = Grid.Pick(IncludeCapture, earliest, MaximumDv, Now + 30, _excludedWindows);
+            if (!best.Valid) { SelectedIndex = -1; Message = earliest ? "transfer.no_early" : "transfer.no_solution"; return; }
+            int x = (int)Math.Round((best.Departure - Grid.Request.Earliest) / (Grid.Request.Latest - Grid.Request.Earliest) * (Grid.Request.Width - 1));
+            int y = (int)Math.Round((best.Duration - Grid.Request.MinimumDuration) / (Grid.Request.MaximumDuration - Grid.Request.MinimumDuration) * (Grid.Request.Height - 1));
+            SelectedIndex = Math.Clamp(y, 0, Grid.Request.Height - 1) * Grid.Request.Width + Math.Clamp(x, 0, Grid.Request.Width - 1);
+            _selectedSolution = best; _selectedGrid = Grid; ClearRouteProblem();
+            Message = best.BestEffort ? "transfer.fallback_selected" : best.EscapesCentral ? "transfer.escape_selected" : null;
         }
 
         public void HandleAction(string action, Vehicle vehicle, bool controlLocked)
@@ -184,11 +225,19 @@ namespace KITN
                 {
                     case "transfer_search":
                         if (IsChecking) return;
-                        _excludedWindows.Clear(); _replanAttempts = 0;
+                        OberthMode = false;
+                        _excludedWindows.Clear(); ResetRouteAdjustments();
                         BeginSearch(vehicle, false);
                         break;
-                    case "transfer_create": _replanAttempts = 0; CreateNode(vehicle, false); break;
-                    case "transfer_execute": _replanAttempts = 0; CreateNode(vehicle, true); break;
+                    case "transfer_oberth":
+                        if (IsChecking || IsExecuting) return;
+                        if (!CanSearchOberth) { Message = "transfer.oberth_requires_earth"; return; }
+                        OberthMode = true; PreferEarliest = false;
+                        _excludedWindows.Clear(); ResetRouteAdjustments(); BeginSearch(vehicle, false);
+                        break;
+                    case "transfer_improve": ImproveRoute(vehicle); break;
+                    case "transfer_create": CreateNode(vehicle, false); break;
+                    case "transfer_execute": CreateNode(vehicle, true); break;
                     case "transfer_capture":
                         if (!CanExecuteCapture) { Message = "transfer.capture_existing"; return; }
                         StartExecution(vehicle);
@@ -212,14 +261,23 @@ namespace KITN
             try
             {
                 Grid = _search.GetAwaiter().GetResult(); SelectedIndex = -1;
+                _search = null;
+                Stale = false;
                 SelectBest(PreferEarliest);
+                if (!Selected.Valid && Grid.Request.Oberth && !double.IsFinite(TransferOberth.Departure(Grid.Request, Grid.Request.Earliest)))
+                    Message = "transfer.oberth_no_window";
+                int valid = 0;
+                foreach (var cell in Grid.Cells) if (cell.Valid) valid++;
+                Diag.Info("TRANSFER", Diag.F($"event=search_completed target=\"{Target.Id}\" valid_cells={valid} refined_candidates={Grid.Candidates.Count} selected={SelectedIndex} best_effort={Selected.BestEffort} departure_s={Selected.Departure:F3} dv_mps={Selected.DepartureDv:F3} flyby=\"{Selected.Flyby?.Body.Id ?? "none"}\""));
+                foreach (var rejected in Grid.Request.Rejections)
+                    Diag.Info("TRANSFER", $"event=search_rejection_summary reason={rejected.Key} count={rejected.Value}");
             }
             catch (OperationCanceledException) { Message = "transfer.cancelled"; }
             catch (Exception ex) { Message = "transfer.failed"; Diag.Error("TRANSFER", ex, "Transfer search failed"); }
             finally { _search = null; _cancellation?.Dispose(); _cancellation = null; }
         }
 
-        public bool CanCreate => Selected.Valid && !Stale && !IsSearching && !IsChecking && !HasOtherNodes && Selected.Departure > Now + 30;
+        public bool CanCreate => Selected.Valid && !Stale && !NeedsBetterRoute && !IsSearching && !IsChecking && !HasOtherNodes && Selected.Departure > Now + 30;
         public bool CanExecute => CanCreate && _vehicle?.IsControllable == true
             && (_vehicle.BurnPlan.BurnCount == 0 || (_vehicle.BurnPlan.BurnCount == 1 && HasNode));
         public bool CanExecuteCapture => !IsExecuting && _captureNode != null && HasNode && _vehicle?.IsControllable == true

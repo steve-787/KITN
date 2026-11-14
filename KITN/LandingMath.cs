@@ -32,6 +32,8 @@ namespace KITN
     internal sealed class LandingBodyModel
     {
         public double Mu, Radius, AtmosphereHeight, DragArea, Mass, Thrust;
+        public LandingSettings Settings = new LandingSettings();
+        public double AttitudeResponseSeconds;
         public LandingVector AngularVelocity;
         public double[] DensitySamples = Array.Empty<double>();
         public double DensityStep = 2000;
@@ -163,7 +165,7 @@ namespace KITN
             LandingVector normal = LandingVector.Cross(position, seedVelocity).Unit;
             LandingVector axis1 = LandingVector.Cross(normal, up).Unit, axis2 = normal;
             if (axis1.LengthSquared < 0.5 || axis2.LengthSquared < 0.5) return false;
-            double radius = body.Radius + padAltitude + HandoverHeight;
+            double radius = body.Radius + padAltitude + body.Settings.HandoverHeightM;
             LandingVector Error(LandingPrediction p) =>
                 (p.Position - LandingVector.Rotate(padNow, body.AngularVelocity, p.Seconds).Unit * radius);
             for (int iteration = 0; iteration < 10; iteration++)
@@ -206,7 +208,8 @@ namespace KITN
             if (!(body.Mass > 0 && exhaustVelocity > 0)) return false;
             var entry = new LandingBodyModel { Mu = body.Mu, Radius = body.Radius, AtmosphereHeight = body.AtmosphereHeight,
                 DragArea = body.DragArea, AngularVelocity = body.AngularVelocity, DensitySamples = body.DensitySamples,
-                DensityStep = body.DensityStep, Thrust = body.Thrust };
+                DensityStep = body.DensityStep, Thrust = body.Thrust, Settings = body.Settings,
+                AttitudeResponseSeconds = body.AttitudeResponseSeconds };
             // A large deorbit burn changes the ballistic coefficient. Target the mass
             // after that burn rather than predicting the footprint with launch mass.
             for (int iteration = 0; iteration < 6; iteration++)
@@ -217,10 +220,10 @@ namespace KITN
                 if (Math.Abs(correctedMass - entry.Mass) <= entry.Mass * 0.0001)
                 {
                     entry.Mass = correctedMass;
-                    prediction = Predict(entry, position, targetVelocity, body.Radius + padAltitude + HandoverHeight);
+                    prediction = Predict(entry, position, targetVelocity, body.Radius + padAltitude + body.Settings.HandoverHeightM);
                     if (!prediction.Valid) return false;
                     LandingVector arrival = LandingVector.Rotate(padNow, body.AngularVelocity, prediction.Seconds).Unit
-                        * (body.Radius + padAltitude + HandoverHeight);
+                        * (body.Radius + padAltitude + body.Settings.HandoverHeightM);
                     return (prediction.Position - arrival).Length < 2500;
                 }
             }
@@ -237,7 +240,7 @@ namespace KITN
             LandingVector relative = prediction.Velocity - LandingVector.Cross(body.AngularVelocity, prediction.Position);
             double down = Math.Max(0, -LandingVector.Dot(relative, prediction.Position.Unit));
             double gravity = body.Mu / prediction.Position.LengthSquared;
-            double time = 2 * HandoverHeight / Math.Max(50, down);
+            double time = 2 * body.Settings.HandoverHeightM / Math.Max(50, down);
             if (body.Thrust > 0)
             {
                 double net = body.Thrust / Math.Max(1, prediction.Mass > 0 ? prediction.Mass : body.Mass) - gravity;
@@ -247,7 +250,10 @@ namespace KITN
             }
             // Braking alone omits the gravity loss while lining up over the pad. Keep that
             // reserve, plus margin for model/attitude errors, before allowing a deorbit burn.
-            return Math.Max(500, relative.Length * 1.35 + gravity * time + 250);
+            time += Math.Max(0, Math.Max(body.Settings.TerminalHorizonSeconds, body.AttitudeResponseSeconds) - 12);
+            double tiltLoss = Math.Max(1, Math.Sin(85 * Math.PI / 180) / Math.Sin(body.Settings.MaximumTiltDeg * Math.PI / 180));
+            return Math.Max(500, (relative.Length * (1 + body.Settings.ReservePercent / 100.0)
+                + gravity * time + body.Settings.ReserveExtraMps) * tiltLoss);
         }
 
         public static LandingDescentCommand Descend(LandingBodyModel body, LandingVector position, LandingVector velocity,
@@ -259,7 +265,9 @@ namespace KITN
             LandingVector horizontal = relative.Horizontal(up), error = (target - position).Horizontal(up);
             double gravity = body.Mu / position.LengthSquared;
             double net = Math.Max(0.1, maximumAcceleration - gravity);
-            double stoppingHeight = Math.Max(0, vertical * vertical - 0.16) / (2 * net);
+            var settings = body.Settings;
+            double touchdown = settings.TouchdownSpeedMps;
+            double stoppingHeight = Math.Max(0, vertical * vertical - touchdown * touchdown) / (2 * net);
             // Maintain clearance until both lateral position and motion have converged.
             // A ground-level lateral correction is unsafe even with a gentle vertical speed.
             double alignmentHeight = Math.Clamp(Math.Max((error.Length - 15) * 0.03, (horizontal.Length - 0.5) * 5), 0, 300);
@@ -275,22 +283,29 @@ namespace KITN
             double approachSpeed = Math.Max(3, Math.Max(-vertical, 0.6 * Math.Sqrt(2 * gravity * controlHeight)));
             // The 12-second terminal horizon leaves time for the native 8 deg/s attitude
             // controller. A shorter lateral horizon causes oscillations with real engines.
-            double time = Math.Clamp(Math.Max(2 * controlHeight / approachSpeed, lateralTime), 12, 100);
-            double desiredVertical = -Math.Clamp(2 * controlHeight / time, 0.4, 2000);
-            double verticalDemand = -6 * heightError / (time * time) - 4 * vertical / time - 0.8 / time
+            double time = Math.Clamp(Math.Max(2 * controlHeight / approachSpeed, lateralTime),
+                Math.Clamp(Math.Max(settings.TerminalHorizonSeconds, body.AttitudeResponseSeconds), 10, 90), 100);
+            double desiredVertical = -Math.Clamp(2 * controlHeight / time, touchdown, 2000);
+            double verticalDemand = -6 * heightError / (time * time) - 4 * vertical / time - 2 * touchdown / time
                 - LandingVector.Dot(body.Acceleration(position, velocity), up);
             LandingVector lateral = error * (6 / (time * time)) - horizontal * (4 / time);
             LandingVector rotation = LandingVector.Cross(body.AngularVelocity, LandingVector.Cross(body.AngularVelocity, position))
                 + LandingVector.Cross(body.AngularVelocity, relative) * 2;
-            if (vertical < -0.6 && (controlHeight < 5 || stoppingHeight * 1.2 >= controlHeight))
+            if (vertical < -Math.Max(0.6, touchdown * 1.5) && (controlHeight < 5 || stoppingHeight * (settings.BrakingMargin / 1.25) >= controlHeight))
                 verticalDemand = Math.Max(verticalDemand,
-                    gravity + 1.12 * (vertical * vertical - 0.16) / (2 * Math.Max(0.15, controlHeight)));
+                    gravity + (settings.BrakingMargin / 1.5 * 1.12) * (vertical * vertical - touchdown * touchdown) / (2 * Math.Max(0.15, controlHeight)));
+            if (clearance < Math.Max(5, alignmentHeight + 5) && vertical > -3)
+            {
+                desiredVertical = alignmentHeight > 0.1 ? Math.Clamp((alignmentHeight - clearance) / 2, -touchdown, 1) : -touchdown;
+                verticalDemand = -LandingVector.Dot(body.Acceleration(position, velocity), up) + (desiredVertical - vertical) / 0.75;
+            }
             // Keep a useful upward attitude even between minimum-throttle pulses. Do not
             // aim the rocket downwards when aerodynamic braking already meets the demand.
             verticalDemand = Math.Clamp(verticalDemand + LandingVector.Dot(rotation, up), 0.05 * maximumAcceleration, maximumAcceleration);
             lateral += rotation.Horizontal(up);
             double lateralLimit = Math.Min(maximumAcceleration * 0.65,
                 Math.Sqrt(Math.Max(0, maximumAcceleration * maximumAcceleration - verticalDemand * verticalDemand)));
+            lateralLimit = Math.Min(lateralLimit, verticalDemand * Math.Tan(settings.MaximumTiltDeg * Math.PI / 180));
             lateral = lateral.Limited(lateralLimit);
             return new LandingDescentCommand(up * verticalDemand + lateral,
                 desiredVertical, stoppingHeight, error.Length, alignmentHeight, time);

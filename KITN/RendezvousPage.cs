@@ -58,7 +58,7 @@ namespace KITN
             ImGui.BeginDisabled(locked || controller.IsActive || !controller.CanMatch);
             try
             {
-                if (ConsoleWidgets.Button(L10n.Get("rendezvous.match").AsSpan(), "rendezvous.match".AsSpan(), float2.Zero)) action = "rendezvous_match";
+                if (UiIcons.Button("rendezvous.match")) action = "rendezvous_match";
             }
             finally { ImGui.EndDisabled(); }
             ImGui.Separator();

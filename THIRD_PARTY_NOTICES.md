@@ -1,3 +1,10 @@
+# Lucide icons
+
+KITN vendors Lucide 0.468.0 SVG icons from https://github.com/lucide-icons/lucide.
+They are flattened by `tools/build_lucide_icons.py` and embedded in the mod for
+native ImGui rendering. Lucide's ISC/Feather MIT license is included in
+`KITN/Assets/Icons/LICENSE`, in the DLL resources and in the release output.
+
 # MechJebLib
 
 `KITN/TransferLambert.cs` adapts the Gooding Lambert solver from
