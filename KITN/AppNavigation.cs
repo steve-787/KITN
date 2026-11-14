@@ -32,6 +32,12 @@ namespace KITN
         public int Draw(int active, bool launcher)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, PanelLayout.NavigationColor);
+            ImGui.PushStyleColor(ImGuiCol.Border, GameUiColors.Hairline);
+            ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 6 * scale);
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new float2(6, 6) * scale);
+            ImGui.BeginChild("kitn-navigation", new float2(0, 46 * scale), ImGuiChildFlags.Borders | ImGuiChildFlags.AlwaysUseWindowPadding,
+                ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
             float width = ImGui.GetContentRegionAvail().X, button = 34 * scale, gap = 3 * scale;
             float2 origin = ImGui.GetCursorScreenPos();
             float room = Math.Max(0, width - (Pages.Length + 2) * (button + gap) - 8 * scale);
@@ -60,7 +66,7 @@ namespace KITN
                 new float2(button, button), active == Settings, 0)) clicked = Settings;
             ImGui.SetCursorScreenPos(origin);
             ImGui.Dummy(new float2(width, button));
-            ImGui.Separator();
+            ImGui.EndChild(); ImGui.PopStyleVar(2); ImGui.PopStyleColor(2);
             return clicked;
         }
 

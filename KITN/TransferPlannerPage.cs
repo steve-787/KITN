@@ -13,16 +13,21 @@ namespace KITN
         private TransferPlotData _plotData;
         private bool _plotCapture;
         public UiLayoutStore Settings;
-        public string Draw(ManeuverPlanner planner, bool locked)
+        public string DrawControls(ManeuverPlanner planner, bool locked)
         {
             if (planner == null) { ImGui.TextWrapped(L10n.Get("transfer.require_orbit")); return null; }
             string action = null;
+            float scale = ConsoleStyle.EffectiveInterfaceScale;
+            string phase = planner.IsExecuting ? planner.DisplayMessage : L10n.Get(planner.IsSearching ? "transfer.calculating" : "transfer.ready");
+            float phaseWidth = Math.Min(ImGui.CalcTextSize(phase).X, ImGui.GetContentRegionAvail().X * 0.32f);
+            float phaseX = ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X - phaseWidth;
             planner.PreferEarliest = _mode == 2;
             ImGui.BeginDisabled(locked || planner.IsSearching || planner.IsExecuting || planner.IsChecking);
             try
             {
-                UiIcons.Text("orbit", L10n.Get("transfer.destination"), GameUiColors.Label);
-                ImGui.SetNextItemWidth(-1);
+                UiIcons.Text("orbit", AutopilotWindow.FitHeaderText(planner.OriginName ?? "—", ImGui.GetContentRegionAvail().X * 0.2f) + " →", GameUiColors.Label);
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(Math.Max(80 * scale, phaseX - ImGui.GetCursorPosX() - 16 * scale));
                 {
                     float popupWidth = ImGui.GetContentRegionAvail().X;
                     foreach (var body in planner.Bodies)
@@ -48,7 +53,10 @@ namespace KITN
                     }
                 }
                 ModWindowStyle.Hint(L10n.Get("transfer.destination_hint"));
-                if (!planner.CanSearch && !planner.IsExecuting && !planner.HasNode) ImGui.TextWrapped(L10n.Get(planner.UnavailableReason));
+                ImGui.SameLine(); ImGui.SetCursorPosX(phaseX);
+                ImGui.TextColored(planner.IsSearching || planner.IsChecking || planner.IsExecuting ? GameUiColors.Pending : GameUiColors.Muted,
+                    AutopilotWindow.FitHeaderText(phase, phaseWidth));
+                ModWindowStyle.Hint(phase);
                 _modes[0] = "Porkchop"; _modes[1] = L10n.Get("transfer.lowest"); _modes[2] = L10n.Get("transfer.earliest");
                 int selected = ConsoleWidgets.Segmented("transfer-mode".AsSpan(), _modes, _mode);
                 if (selected >= 0)
@@ -56,6 +64,8 @@ namespace KITN
                     _mode = selected;
                     if (_mode != 0) planner.SelectBest(_mode == 2);
                 }
+                // Native segmented controls leave no vertical gap after their row.
+                ImGui.Dummy(new float2(0, 2 * scale));
                 if (_mode == 2)
                 {
                     float limit = planner.MaximumDv;
@@ -70,50 +80,75 @@ namespace KITN
                 try { if (Button("transfer.oberth_lowest")) action = "transfer_oberth"; }
                 finally { ImGui.EndDisabled(); }
             }
+            return action;
+        }
+
+        public string Draw(ManeuverPlanner planner, bool locked)
+        {
+            if (planner == null) { ImGui.TextWrapped(L10n.Get("transfer.require_orbit")); return null; }
+            string action = null;
+            if (!planner.CanSearch && !planner.IsExecuting && !planner.HasNode && planner.Grid != null)
+                using (PanelLayout.Section("transfer-unavailable")) UiIcons.Text("info", L10n.Get(planner.UnavailableReason), GameUiColors.Muted);
             if (_mode == 0)
             {
-                if (planner.Grid != null) DrawPorkchop(planner);
-                else DrawPlotStatus(planner);
+                float figureHeight = PlotHeight();
+                using (PanelLayout.Section("transfer-plot", "panel.transfer_windows", "orbit"))
+                {
+                    if (planner.Grid != null) DrawPorkchop(planner, figureHeight);
+                    else DrawPlotStatus(planner, figureHeight);
+                }
             }
             else if (planner.IsSearching) ImGui.TextColored(GameUiColors.Pending, L10n.Format("transfer.progress", planner.Progress));
             if (planner.Grid != null)
             {
-                if (_mode != 0)
+                using (PanelLayout.Section("transfer-selection", "panel.selected_route", "route"))
                 {
-                    ImGui.BeginDisabled(planner.IsSearching || planner.IsChecking || planner.NeedsBetterRoute);
-                    try { if (Button(_mode == 1 ? "transfer.lowest" : "transfer.earliest")) planner.SelectBest(_mode == 2); }
-                    finally { ImGui.EndDisabled(); }
-                }
-                var solution = planner.Selected;
-                if (solution.Valid && !planner.IsExecuting)
-                {
-                    ConsoleWidgets.Rule();
-                    float width = ImGui.GetContentRegionAvail().X / 3;
-                    float start = ImGui.GetCursorPosX();
-                    Summary("transfer.departure", Duration(solution.Departure - planner.Now), "arrow-up-right");
-                    ImGui.SameLine(); ImGui.SetCursorPosX(start + width);
-                    Summary("transfer.arrival", L10n.Format("transfer.arrival_in", Duration(solution.Departure + solution.Duration - planner.Now)), "calendar-clock");
-                    ModWindowStyle.Hint(L10n.Format("transfer.arrival_epoch", Epoch(solution.Departure + solution.Duration)));
-                    ImGui.SameLine(); ImGui.SetCursorPosX(start + 2 * width);
-                    Summary("transfer.delta_v", solution.Cost(planner.IncludeCapture).ToString("N0", L10n.Culture) + " m/s", "zap");
-                    ModWindowStyle.Hint(L10n.Format("transfer.cost_hint", solution.DepartureDv.ToString("N0", L10n.Culture), solution.CaptureDv.ToString("N0", L10n.Culture)));
-                    UiIcons.Text("clock", L10n.Get("transfer.duration") + " · " + Duration(solution.Duration)
-                        + "    ·    " + L10n.Format("transfer.arrival_epoch", Epoch(solution.Departure + solution.Duration)), GameUiColors.Muted);
-                    if (solution.Flyby != null) ImGui.Text(L10n.Format("transfer.via", solution.Flyby.Body.Id));
-                    if (planner.Grid.Request.Oberth) ImGui.TextColored(GameUiColors.Muted, L10n.Get("transfer.oberth_route"));
-                    ModWindowStyle.Hint(L10n.Format("transfer.cost_hint", solution.DepartureDv.ToString("N0", L10n.Culture), solution.CaptureDv.ToString("N0", L10n.Culture)));
-                    ImGui.BeginDisabled(locked || planner.IsExecuting || !planner.CanCreate);
-                    try { if (Primary("transfer.create")) action = "transfer_create"; }
-                    finally { ImGui.EndDisabled(); }
-                    if (planner.HasOtherNodes) ModWindowStyle.Hint(L10n.Get("transfer.existing_nodes"));
-                    SameLineIfFits("transfer.execute");
-                    ImGui.BeginDisabled(locked || planner.IsExecuting || !planner.CanExecute);
-                    try { if (Button("transfer.execute")) action = "transfer_execute"; }
-                    finally { ImGui.EndDisabled(); }
-                    ModWindowStyle.Hint(L10n.Get(planner.IsSearching ? "transfer.calculating" : planner.IsChecking ? "transfer.checking" : planner.HasOtherNodes ? "transfer.existing_nodes" : planner.CanCreate ? "transfer.execute_hint" : "transfer.stale"));
-                    if (!planner.IsSearching && (planner.Stale || solution.Departure <= planner.Now + 30)) ImGui.TextWrapped(L10n.Get("transfer.stale"));
+                    if (_mode != 0)
+                    {
+                        ImGui.BeginDisabled(planner.IsSearching || planner.IsChecking || planner.NeedsBetterRoute);
+                        try { if (Button(_mode == 1 ? "transfer.lowest" : "transfer.earliest")) planner.SelectBest(_mode == 2); }
+                        finally { ImGui.EndDisabled(); }
+                    }
+                    var solution = planner.Selected;
+                    if (solution.Valid && !planner.IsExecuting)
+                    {
+                        float width = ImGui.GetContentRegionAvail().X / 3;
+                        float start = ImGui.GetCursorPosX();
+                        Summary("transfer.departure", Duration(solution.Departure - planner.Now), "arrow-up-right");
+                        ImGui.SameLine(); ImGui.SetCursorPosX(start + width);
+                        Summary("transfer.arrival", L10n.Format("transfer.arrival_in", Duration(solution.Departure + solution.Duration - planner.Now)), "calendar-clock");
+                        ModWindowStyle.Hint(L10n.Format("transfer.arrival_epoch", Epoch(solution.Departure + solution.Duration)));
+                        ImGui.SameLine(); ImGui.SetCursorPosX(start + 2 * width);
+                        Summary("transfer.delta_v", solution.Cost(planner.IncludeCapture).ToString("N0", L10n.Culture) + " m/s", "zap");
+                        ModWindowStyle.Hint(L10n.Format("transfer.cost_hint", solution.DepartureDv.ToString("N0", L10n.Culture), solution.CaptureDv.ToString("N0", L10n.Culture)));
+                        UiIcons.Text("clock", L10n.Get("transfer.duration") + " · " + Duration(solution.Duration), GameUiColors.Muted);
+                        UiIcons.Text("calendar-clock", L10n.Format("transfer.arrival_epoch", Epoch(solution.Departure + solution.Duration)), GameUiColors.Muted);
+                        if (solution.Flyby != null) ImGui.Text(L10n.Format("transfer.via", solution.Flyby.Body.Id));
+                        if (planner.Grid.Request.Oberth) ImGui.TextColored(GameUiColors.Muted, L10n.Get("transfer.oberth_route"));
+                        ModWindowStyle.Hint(L10n.Format("transfer.cost_hint", solution.DepartureDv.ToString("N0", L10n.Culture), solution.CaptureDv.ToString("N0", L10n.Culture)));
+                        ImGui.BeginDisabled(locked || planner.IsExecuting || !planner.CanCreate);
+                        try { if (Primary("transfer.create")) action = "transfer_create"; }
+                        finally { ImGui.EndDisabled(); }
+                        if (planner.HasOtherNodes) ModWindowStyle.Hint(L10n.Get("transfer.existing_nodes"));
+                        SameLineIfFits("transfer.execute");
+                        ImGui.BeginDisabled(locked || planner.IsExecuting || !planner.CanExecute);
+                        try { if (Button("transfer.execute")) action = "transfer_execute"; }
+                        finally { ImGui.EndDisabled(); }
+                        ModWindowStyle.Hint(L10n.Get(planner.IsSearching ? "transfer.calculating" : planner.IsChecking ? "transfer.checking" : planner.HasOtherNodes ? "transfer.existing_nodes" : planner.CanCreate ? "transfer.execute_hint" : "transfer.stale"));
+                        if (!planner.IsSearching && (planner.Stale || solution.Departure <= planner.Now + 30)) ImGui.TextWrapped(L10n.Get("transfer.stale"));
+                    }
                 }
             }
+            if (planner.HasNode)
+                using (PanelLayout.Section("transfer-node", "panel.planner_node", "orbit")) DrawNodeActions(planner, locked, ref action);
+            if (planner.DisplayMessage != null)
+                using (PanelLayout.Section("transfer-status")) UiIcons.Text("info", planner.DisplayMessage, GameUiColors.Muted);
+            using (PanelLayout.Section("transfer-options")) DrawSearchOptions(planner, locked);
+            return action;
+        }
+
+        private static void DrawNodeActions(ManeuverPlanner planner, bool locked, ref string action)
+        {
             if (planner.HasNode)
             {
                 if (planner.CanExecuteCapture)
@@ -132,9 +167,6 @@ namespace KITN
                 SameLineIfFits("transfer.stop");
                 if (ConsoleWidgets.DangerButton(L10n.Get("transfer.stop").AsSpan(), "transfer.stop".AsSpan(), float2.Zero)) action = "transfer_stop";
             }
-            if (planner.DisplayMessage != null) UiIcons.Text("info", planner.DisplayMessage, GameUiColors.Muted);
-            DrawSearchOptions(planner, locked);
-            return action;
         }
 
         private void DrawSearchOptions(ManeuverPlanner planner, bool locked)
@@ -188,14 +220,13 @@ namespace KITN
         private static float PlotHeight()
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
-            return Math.Clamp(ImGui.GetContentRegionAvail().Y - 230 * scale, 100 * scale, 320 * scale);
+            // Use the viewport height: available content height changes as this child scrolls.
+            return Math.Clamp((ImGui.GetWindowSize().Y - 86 * scale) * 0.32f, 80 * scale, 260 * scale);
         }
 
-        private static void DrawPlotStatus(ManeuverPlanner planner)
+        private static void DrawPlotStatus(ManeuverPlanner planner, float height)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
-            float height = PlotHeight();
-            ImGui.Dummy(new float2(0, 4 * scale));
             ImGui.TextColored(GameUiColors.Muted, L10n.Get("transfer.plot_y"));
             float width = Math.Max(120, ImGui.GetContentRegionAvail().X - 156 * scale);
             float2 size = new float2(width, height);
@@ -241,13 +272,13 @@ namespace KITN
                 ConsoleStyle.PushLabelFont(0.8f);
                 try { UiIcons.Text(icon, L10n.Get(label), GameUiColors.Muted); }
                 finally { ConsoleStyle.PopFont(); }
-                ImGui.TextColored(GameUiColors.Text, value);
+                ImGui.TextColored(label == "transfer.arrival" ? GameUiColors.Accent : GameUiColors.Text, value);
             }
             finally { ImGui.EndGroup(); }
         }
 
         // Draw with the native ImGui list, keeping the plot interactive without a texture or graphics-device dependency.
-        public void DrawPorkchop(ManeuverPlanner planner)
+        public void DrawPorkchop(ManeuverPlanner planner, float height)
         {
             var grid = planner.Grid.PorkchopGrid ?? planner.Grid;
             var request = grid.Request;
@@ -259,8 +290,6 @@ namespace KITN
             var plot = _plotData;
             float scale = ConsoleStyle.EffectiveInterfaceScale;
             float width = Math.Max(120, ImGui.GetContentRegionAvail().X - 156 * scale);
-            float height = PlotHeight();
-            ImGui.Dummy(new float2(0, 4 * scale));
             ImGui.TextColored(GameUiColors.Muted, L10n.Get("transfer.plot_y"));
             float2 region = ImGui.GetCursorScreenPos();
             float2 origin = region + new float2(70 * scale, 0);

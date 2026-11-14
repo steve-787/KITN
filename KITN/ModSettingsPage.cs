@@ -16,24 +16,27 @@ namespace KITN
         public bool Draw(UiLayoutStore settings)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
-            UiIcons.Text("settings", L10n.Get("settings.title"), GameUiColors.Text);
-            ImGui.Dummy(new float2(0, 6 * scale));
             ImGui.BeginDisabled(settings?.IsLoaded != true);
             try
             {
-                if (ImGui.CollapsingHeader(L10n.Get("settings.widgets") + "###settings-widgets", ImGuiTreeNodeFlags.DefaultOpen))
-                    for (int i = 0; i < Widgets.Length; i++) DrawWidget(settings, WidgetIds[i], Widgets[i]);
-                ImGui.Dummy(new float2(0, 6 * scale));
-                if (ImGui.CollapsingHeader(L10n.Get("settings.control") + "###settings-control", ImGuiTreeNodeFlags.DefaultOpen))
+                using (PanelLayout.Section("settings-widgets"))
                 {
-                    ConsoleWidgets.BeginRow(L10n.Get("settings.allow_rcs").AsSpan());
-                    try
+                    if (ImGui.CollapsingHeader(L10n.Get("settings.widgets") + "###settings-widgets", ImGuiTreeNodeFlags.DefaultOpen))
+                        for (int i = 0; i < Widgets.Length; i++) DrawWidget(settings, WidgetIds[i], Widgets[i]);
+                }
+                using (PanelLayout.Section("settings-control"))
+                {
+                    if (ImGui.CollapsingHeader(L10n.Get("settings.control") + "###settings-control", ImGuiTreeNodeFlags.DefaultOpen))
                     {
-                        bool allowed = settings?.AllowRcs ?? true;
-                        if (ConsoleWidgets.Checkbox("allow-rcs".AsSpan(), ref allowed, false)) settings?.SetAllowRcs(allowed, Environment.TickCount64);
-                        ModWindowStyle.Hint(L10n.Get("settings.allow_rcs_hint"));
+                        ConsoleWidgets.BeginRow(L10n.Get("settings.allow_rcs").AsSpan());
+                        try
+                        {
+                            bool allowed = settings?.AllowRcs ?? true;
+                            if (ConsoleWidgets.Checkbox("allow-rcs".AsSpan(), ref allowed, false)) settings?.SetAllowRcs(allowed, Environment.TickCount64);
+                            ModWindowStyle.Hint(L10n.Get("settings.allow_rcs_hint"));
+                        }
+                        finally { ConsoleWidgets.EndRow(); }
                     }
-                    finally { ConsoleWidgets.EndRow(); }
                 }
             }
             finally { ImGui.EndDisabled(); }
@@ -48,7 +51,7 @@ namespace KITN
             else UiIcons.Text(settings?.LastError != null ? "circle-alert" : "info",
                 L10n.Get(settings?.LastError != null ? "settings.save_failed" : settings?.IsDirty == true ? "settings.saving" : "settings.saved"), GameUiColors.Muted);
             float remaining = ImGui.GetContentRegionAvail().Y;
-            ImGui.Dummy(new float2(0, Math.Max(8 * scale, remaining - 44 * scale)));
+            ImGui.Dummy(new float2(0, Math.Max(8 * scale, remaining - 72 * scale)));
             ImGui.Separator();
             float footerWidth = ImGui.GetContentRegionAvail().X;
             float versionWidth = ImGui.CalcTextSize(BuildInfo.DisplayVersion).X;

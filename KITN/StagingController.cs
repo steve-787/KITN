@@ -16,8 +16,9 @@ namespace KITN
         private const double STAGE_COOLDOWN_SECONDS = 1.0;
         private const double HOT_STAGE_COOLDOWN_SECONDS = 15.0;
         private const double CONFIRM_SECONDS = 0.5;   // condition must hold this long before staging
-        private const float MIN_THROTTLE_FOR_STAGING = 0.05f;
+        private const float MIN_REQUESTED_THROTTLE = 0.001f;
         private bool _lastWasHot = false;
+        private float _requestedThrottle, _instantaneousThrottle;
 
         public string DebugStatus { get; private set; } = "not_evaluated";
         public double ConfirmationElapsedSeconds { get; private set; }
@@ -47,12 +48,14 @@ namespace KITN
 
         /// <summary>
         /// Evaluates vehicle staging status and triggers the next stage if necessary.
-        /// commandedThrottle is what the autopilot currently asks for: while it is ~0 (coast)
+        /// requestedThrottle is the average thrust demand before minimum-throttle pulsing: while it is ~0 (coast)
         /// engines are off on purpose, so the normal sequence must be preserved.
         /// Empty, previously ignited branches may still be discarded without igniting the next engine.
         /// </summary>
-        public void Update(Vehicle vehicle, double currentTime, float commandedThrottle)
+        public void Update(Vehicle vehicle, double currentTime, float requestedThrottle, float? instantaneousThrottle = null)
         {
+            _requestedThrottle = requestedThrottle;
+            _instantaneousThrottle = instantaneousThrottle ?? requestedThrottle;
             ConfirmationElapsedSeconds = 0;
             CooldownRemainingSeconds = 0;
             if (!_profile.AutoStaging || vehicle == null)
@@ -99,10 +102,10 @@ namespace KITN
                 return;
             }
 
-            if (commandedThrottle < MIN_THROTTLE_FOR_STAGING)
+            if (!float.IsFinite(requestedThrottle) || requestedThrottle <= MIN_REQUESTED_THROTTLE)
             {
                 _dryingSince = double.NaN;
-                DebugStatus = "throttle_below_0.05_intentional_engine_cutoff";
+                DebugStatus = "no_requested_thrust_intentional_engine_cutoff";
                 return;
             }
 
@@ -151,7 +154,11 @@ namespace KITN
             bool engineActive = vehicle.IsAnyEngineActive();
             bool propellantAvailable = vehicle.IsAnyEnginePropellantAvailable();
             bool enginesFlameout = !engineActive || !propellantAvailable;
-            bool zeroThrust = vehicle.ComputeLiveThrust() <= 0.001;
+            // No measured thrust during a pulse gap is intentional. Only treat zero thrust
+            // as failure when this step asks for a continuous powered engine command.
+            bool continuousThrust = _instantaneousThrottle > MIN_REQUESTED_THROTTLE
+                && _requestedThrottle >= _instantaneousThrottle - 0.0001f;
+            bool zeroThrust = continuousThrust && vehicle.ComputeLiveThrust() <= 0.001;
 
             DebugStatus = !engineActive ? "confirming_no_active_engine"
                 : !propellantAvailable ? "confirming_no_engine_propellant"
@@ -164,7 +171,7 @@ namespace KITN
         {
             try
             {
-                Diag.Info("STAGING", Diag.F($"event=activation_requested type={(isHotStage ? "hot" : "normal")} reason={reason} player_t_s={currentTime:F3} confirmed_s={ConfirmationElapsedSeconds:F3} hot_stage_fuel_threshold_pct={_profile.HotStagingFuelPercent:F3} ") + StageDetails(vehicle));
+                Diag.Info("STAGING", Diag.F($"event=activation_requested type={(isHotStage ? "hot" : "normal")} reason={reason} player_t_s={currentTime:F3} confirmed_s={ConfirmationElapsedSeconds:F3} requested_average_throttle={_requestedThrottle:F6} commanded_throttle={_instantaneousThrottle:F6} hot_stage_fuel_threshold_pct={_profile.HotStagingFuelPercent:F3} ") + StageDetails(vehicle));
                 vehicle.Parts.SequenceList.ActivateNextSequence(vehicle);
                 _lastStageTime = currentTime;
                 _lastWasHot = isHotStage;

@@ -298,10 +298,11 @@ namespace KITN
                         break;
 
                 }
-                // Evaluate the command from this step: a cutoff must also suppress staging immediately.
+                // The average demand distinguishes minimum-throttle pulse gaps from MECO/coast.
+                // A real cutoff still suppresses ignition of the next stage immediately.
                 if (IsActive)
                 {
-                    _staging.Update(vehicle, currentTime, _commandedThrottle);
+                    _staging.Update(vehicle, currentTime, (float)_requestedThrottle, _commandedThrottle);
                     _stagingEvaluated = true;
                 }
             }

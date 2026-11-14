@@ -15,7 +15,7 @@ internal static class Program
 {
     private const string Game = @"K:\Games\Kitten Space Agency";
     private static Assembly Mod;
-    private static object Window, Timer, Flight, Clock, Store, MainLayout, TimerLayout;
+    private static object Window, Timer, Flight, Clock, Store, MainLayout, TimerLayout, Landing;
     private static LaunchProfile Profile;
     private static AscentGuidance Guidance;
     private static string Output;
@@ -83,6 +83,7 @@ internal static class Program
         Profile = new LaunchProfile { CurrentAltitudeKm = 173.422, CurrentApoapsisKm = 199.8, CurrentPeriapsisKm = -4600, CurrentOrbitalSpeed = 5400 };
         Guidance = new AscentGuidance(Profile, new StagingController(Profile));
         Window = New("AutopilotWindow"); Timer = New("MissionTimeWindow"); Flight = New("FlightDisplay"); Clock = New("MissionClock");
+        Landing = New("LandingController");
         Set(Flight, "HasVehicle", true); Set(Flight, "VehicleName", "LEO Test Vehicle"); Set(Flight, "AltitudeMeters", 173422.0);
         Set(Flight, "AltitudeBodyName", "Earth");
         Call(Clock, "MarkLaunched", 0.0); Call(Clock, "Advance", 237.0);
@@ -99,33 +100,54 @@ internal static class Program
         Set(predicted, "Altitudes", new double[] { 0, 25, 60, 100, 150, 180, 197, 200 });
         Set(predicted, "MessageKey", "preview.complete");
         for (int frame = 0; frame < 3; frame++) Frame(true);
+        if (Environment.GetCommandLineArgs().Contains("--staging-checks"))
+        {
+            StagingChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
         Save("launcher.png", 800, 670, 12, 12);
-        LauncherNavigationChecks();
+        if (!CaptureOnly) LauncherNavigationChecks();
         Set(Window, "_homeOpen", false);
 
         foreach (string theme in new[] { "Retro", "Modern" })
         {
             Call(Store, "SetTheme", Enum.Parse(Mod.GetType("KITN.UiTheme"), theme), Environment.TickCount64);
-            for (int frame = 0; frame < 3; frame++) Frame(true);
+            for (int frame = 0; frame < 45; frame++) Frame(true);
             Save("instruments-" + theme.ToLowerInvariant() + ".png", 416, 288, 820, 12);
-            for (int tab = 0; tab < 5; tab++)
+            for (int tab = 0; tab < 6; tab++)
             {
                 Set(Window, "_tab", tab);
-                for (int frame = 0; frame < 3; frame++) Frame(true);
+                for (int frame = 0; frame < 45; frame++) Frame(true);
                 Check(ImGui.GetDrawData().TotalVtxCount > 1000, "A main panel page did not render");
                 if (theme == "Retro") Save("page-" + tab + ".png", 800, 670, 12, 12);
             }
             Set(Window, "_settingsOpen", true);
-            for (int frame = 0; frame < 3; frame++) Frame(true);
+            for (int frame = 0; frame < 45; frame++) Frame(true);
             Save("settings-" + theme.ToLowerInvariant() + ".png", 800, 670, 12, 12);
             Set(Window, "_settingsOpen", false);
-            Console.WriteLine("PASS native all five tabs and general Settings with " + theme + " theme");
+            Console.WriteLine("PASS native all six modes and general Settings with " + theme + " theme");
         }
-        if (CaptureOnly) { PlannerChecks(); return; }
+        if (CaptureOnly)
+        {
+            foreach (string locale in new[] { "en-US", "de-DE" })
+            {
+                Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { locale });
+                for (int tab = 0; tab < 7; tab++)
+                {
+                    Set(Window, "_tab", tab); Set(Window, "_settingsOpen", tab == 6);
+                    for (int frame = 0; frame < 60; frame++) Frame(true, true);
+                    Save($"page-{tab}-{locale}-minimum.png", 580, 420, 12, 12);
+                }
+            }
+            Set(Window, "_settingsOpen", false);
+            Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { "en-US" });
+            PlannerChecks();
+            ((IDisposable)Window).Dispose(); ImGui.DestroyContext();
+            return;
+        }
         Set(Window, "_settingsOpen", true);
         Call(Store, "SetTheme", Enum.Parse(Mod.GetType("KITN.UiTheme"), "Retro"), Environment.TickCount64);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(700, 260, "autopilot");
+        Click(700, 309, "autopilot");
         for (int frame = 0; frame < 2; frame++) Frame();
         Save("theme-dropdown.png", 800, 670, 12, 12);
         io.AddKeyEvent(ImGuiKey.DownArrow, true); Frame();
@@ -135,13 +157,13 @@ internal static class Program
         Check(Store.GetType().GetProperty("Theme").GetValue(Store).ToString() == "Modern", "Theme dropdown cannot select Modern with keyboard navigation");
         Check(Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "A dropdown theme selection was not persisted");
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(737, 364, "autopilot");
+        Click(730, 421, "autopilot");
         Check(!(bool)Store.GetType().GetProperty("AllowRcs").GetValue(Store), "The general settings RCS toggle cannot be switched off");
         Check(Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "The RCS toggle was not saved");
         string settingsPath = (string)Store.GetType().GetField("_path", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Store);
         var reloadedSettings = New("UiLayoutStore", settingsPath); Call(reloadedSettings, "Load");
         Check(!(bool)reloadedSettings.GetType().GetProperty("AllowRcs").GetValue(reloadedSettings), "The RCS toggle does not survive restart");
-        Click(737, 364, "autopilot");
+        Click(730, 421, "autopilot");
         Check((bool)Store.GetType().GetProperty("AllowRcs").GetValue(Store), "The RCS toggle cannot be enabled again");
         Console.WriteLine("PASS general settings RCS toggle is clickable and persists across restart");
         Set(Window, "_settingsOpen", false);
@@ -157,7 +179,7 @@ internal static class Program
         Console.WriteLine("PASS native minimum window sizes with reachable countdown controls");
         Check(Click(547, 70, "autopilot") == null && (bool)Window.GetType().GetField("_settingsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window),
             "Settings toolbar button cannot open the general page");
-        Check(Click(95, 111, "autopilot") == "cancel_countdown", "Countdown cannot be cancelled from general Settings");
+        Check(Click(95, 157, "autopilot") == "cancel_countdown", "Countdown cannot be cancelled from general Settings");
         Set(Window, "_settingsOpen", false);
         Console.WriteLine("PASS native toolbar opens Settings and preserves countdown cancellation there");
         Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { "de-DE" });
@@ -167,9 +189,12 @@ internal static class Program
         Set(Window, "_settingsOpen", true);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Save("settings-german-minimum.png", 576, 416, 12, 12);
-        Click(495, 364, "autopilot");
+        ScrollBody(-4);
+        Save("settings-german-minimum-scrolled.png", 576, 416, 12, 12);
+        Click(490, 197, "autopilot");
         Check(!(bool)Store.GetType().GetProperty("AllowRcs").GetValue(Store), "RCS toggle is unreachable at minimum German window size");
-        Click(495, 364, "autopilot");
+        Click(490, 197, "autopilot");
+        ScrollBody(20);
         Set(Window, "_settingsOpen", false);
         Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { "en-US" });
         Console.WriteLine("PASS native German general Settings and minimum main toolbar layout");
@@ -257,16 +282,16 @@ internal static class Program
         Set(Window, "_settingsOpen", true); Set(Window, "_diagnosticsOpen", false);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Check(!(bool)Store.GetType().GetProperty("MissionTimeOpen").GetValue(Store), "Legacy instrument state defaults unexpectedly to open");
-        Click(737, 206, "autopilot");
+        Click(730, 250, "autopilot");
         Check((bool)Store.GetType().GetProperty("MissionTimeOpen").GetValue(Store), "Widget enable toggle is unreachable");
-        Click(737, 290, "autopilot");
+        Click(730, 340, "autopilot");
         Check((bool)Store.GetType().GetProperty("AutoHideInstrumentFrame").GetValue(Store), "Widget transparency toggle is unreachable");
         Check(Call(Store, "Flush", Environment.TickCount64, true).ToString() == "Saved", "Widget settings do not save");
         string path = (string)Store.GetType().GetField("_path", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Store);
         var restart = New("UiLayoutStore", path); Call(restart, "Load");
         Check((bool)restart.GetType().GetProperty("MissionTimeOpen").GetValue(restart) && (bool)restart.GetType().GetProperty("AutoHideInstrumentFrame").GetValue(restart),
             "Clicked widget settings do not survive restart");
-        Click(737, 206, "autopilot"); Click(737, 290, "autopilot");
+        Click(730, 250, "autopilot"); Click(730, 340, "autopilot");
         Check(!(bool)Store.GetType().GetProperty("MissionTimeOpen").GetValue(Store), "Widget cannot be disabled again");
         Set(Window, "_settingsOpen", false);
         Console.WriteLine("PASS widget visibility and transparency are independently clickable and saved across restart");
@@ -297,23 +322,23 @@ internal static class Program
         Set(Window, "Rendezvous", controller); Set(Window, "_tab", 3);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("rendezvous.png", 800, 670, 12, 12);
-        Check(Click(85, 160, "autopilot") == "rendezvous_dock", "Autodock does not reach the physics action queue");
+        Check(Click(85, 180, "autopilot") == "rendezvous_dock", "Autodock does not reach the physics action queue");
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Save("rendezvous-minimum.png", 580, 420, 12, 12);
-        Check(Click(85, 160, "autopilot") == "rendezvous_dock", "Autodock is unreachable at minimum window size");
-        Check(Click(100, 292, "autopilot") == "rendezvous_match", "Match velocity is unreachable at minimum window size");
+        Check(Click(85, 180, "autopilot") == "rendezvous_dock", "Autodock is unreachable at minimum window size");
+        Check(Click(100, 370, "autopilot") == "rendezvous_match", "Match velocity is unreachable at minimum window size");
         Set(controller, "CanDock", false);
-        Check(Click(85, 160, "autopilot") == null, "Unavailable docking still starts from the toolbar");
+        Check(Click(85, 180, "autopilot") == null, "Unavailable docking still starts from the toolbar");
         Set(controller, "CanDock", true);
         Set(controller, "_activeVehicle", station);
-        Check(Click(85, 160, "autopilot") == "rendezvous_stop", "Active docking cannot be stopped");
+        Check(Click(85, 180, "autopilot") == "rendezvous_stop", "Active docking cannot be stopped");
         Set(Window, "_settingsOpen", true);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Check(Click(85, 111, "autopilot") == "rendezvous_stop", "Settings hide the active docking stop control");
+        Check(Click(85, 157, "autopilot") == "rendezvous_stop", "Settings hide the active docking stop control");
         Set(controller, "_activeVehicle", null); Set(Window, "_tab", 0);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("settings-diagnostics-entry.png", 800, 670, 12, 12);
-        Click(100, 411, "autopilot");
+        Click(100, 485, "autopilot");
         Check((bool)Window.GetType().GetField("_diagnosticsOpen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window), "Settings cannot open the diagnostics page");
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("diagnostics.png", 800, 670, 12, 12);
@@ -321,7 +346,7 @@ internal static class Program
             "Diagnostics cannot return to settings");
         Set(Window, "_settingsOpen", false); Set(Window, "_tab", 3);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(710, 202, "autopilot");
+        Click(710, 274, "autopilot");
         var io = ImGui.GetIO();
         io.AddKeyEvent(ImGuiKey.DownArrow, true); Frame(); io.AddKeyEvent(ImGuiKey.DownArrow, false); Frame();
         io.AddKeyEvent(ImGuiKey.Enter, true); Frame(); io.AddKeyEvent(ImGuiKey.Enter, false); Frame();
@@ -578,9 +603,51 @@ internal static class Program
             axial.Connector.Connection = null;
             Coast(0.6);
             Check(staging.BoosterDropCount == 1 && !inline.Activated, "Inline separation confirmation loses the upper-stage ignition action");
+            // Replay the logged post-separation state: only the inactive upper engine remains,
+            // while a ~1.6% average insertion demand produces brief 10% pulses with gaps.
+            tree.Modules = new ModuleList(); tree.Modules.Add(upperEngine);
+            Set(tree, "_parts", new System.Collections.Generic.List<Part> { root });
+            root.TreeChildren.Clear(); lower.TreeParent = null;
+            upperEngine.Cores = Array.Empty<RocketCore>();
+            Set(vehicle, "FlightComputer", new FlightComputer());
+            tree.States = new ModuleStateList();
+            tree.RocketNozzles = new RocketNozzle.StateList();
+            Coast(2);
+            Check(!inline.Activated && !upperEngine.IsActive, "Coasting after MECO prematurely ignites the upper stage");
+            void Insertion(double time, float average, float pulse)
+            {
+                object step = Activator.CreateInstance(simStep.FieldType);
+                Set(step, "NextTime", new UniverseTime(time)); simStep.SetValue(null, step);
+                staging.Update(vehicle, 10 + time, average, pulse);
+            }
+            Insertion(2.1, 0.016f, 0);
+            Check(!inline.Activated && staging.DebugStatus == "confirming_no_active_engine", "A minimum-throttle pulse gap suppresses upper-stage confirmation");
+            Insertion(2.3, 0, 0);
+            Check(!inline.Activated && staging.ConfirmationElapsedSeconds == 0, "Real MECO does not cancel pending ignition confirmation");
+            Insertion(2.4, 0.016f, 0.1f);
+            Insertion(2.6, 0.016f, 0);
+            Insertion(2.9, 0.016f, 0);
+            int Ignitions() => InputEvents.IActivateInputBuffer.Get().ToArray()
+                .Count(input => ReferenceEquals(input.EngineController, upperEngine) && input.ActivationState);
+            Check(inline.Activated && Ignitions() == 1 && tree.SequenceList.GetNextSequenceNumber() < 0,
+                "Upper-stage ignition remains blocked by low insertion demand or pulse gaps after lower-stage separation");
+            Insertion(4, 0.016f, 0.1f);
+            Check(Ignitions() == 1, "Pending native upper-stage ignition is queued more than once");
+
+            // A healthy active engine also has zero instantaneous thrust between pulses.
+            // Its global state must prevent those gaps from advancing the next sequence.
+            var engineStates = tree.States.InitializeHotPathList<EngineController, EngineControllerState, EngineControllerGlobalState, EmptyStruct>();
+            ref var global = ref engineStates.GetMutableGlobalStateForInitialization();
+            global.IsAnyActive = global.IsAnyPropellantAvailable = true;
+            inline.Activated = false; Set(tree.SequenceList, "ActiveSequence", 2); staging.Reset();
+            for (int i = 0; i < 120; i++) Insertion(5 + i * 0.02, 0.016f, i % 6 == 0 ? 0.1f : 0);
+            Check(!inline.Activated && Ignitions() == 1,
+                "A fueled active engine is staged away because minimum-throttle pulsing reports zero instantaneous thrust");
         }
         finally { simStep.SetValue(null, previousStep); }
         Console.WriteLine("PASS native empty inline stage remembers earlier ignition and separates during coast without igniting the upper stage");
+        Console.WriteLine("PASS logged post-MECO upper-stage ignition survives minimum-throttle pulse gaps while real cutoff cancels confirmation");
+        Console.WriteLine("PASS healthy fueled engines do not advance staging during minimum-throttle pulse gaps");
     }
 
     private static void TransferControlChecks()
@@ -1447,6 +1514,22 @@ internal static class Program
             && !(bool)planner.GetType().GetProperty("CanCreate").GetValue(planner), "Impossible earliest budget retains an executable old selection");
         Set(planner, "MaximumDv", 12000f); Call(planner, "SelectBest", false);
         var page = Window.GetType().GetField("_transferPage", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(Window);
+        if (CaptureOnly)
+        {
+            foreach (string locale in new[] { "en-US", "de-DE" })
+            {
+                Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { locale });
+                foreach (bool small in new[] { false, true })
+                    for (int mode = 0; mode < 3; mode++)
+                    {
+                        Set(page, "_mode", mode);
+                        for (int frame = 0; frame < 60; frame++) Frame(true, small);
+                        Save($"maneuver-{mode}-{locale}-{(small ? "minimum" : "normal")}.png", small ? 580 : 800, small ? 420 : 670, 12, 12);
+                    }
+            }
+            Set(Window, "Planner", null); ((IDisposable)planner).Dispose();
+            return;
+        }
         Set(planner, "Grid", null); Set(planner, "SelectedIndex", -1);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Check(HasPlotSurface(), "Porkchop area disappears before a calculation");
@@ -1479,8 +1562,8 @@ internal static class Program
         for (int frame = 0; frame < 3; frame++) Frame(true);
         string chrome = PlannerChrome();
         uint pendingInk = ImGui.ColorConvertFloat4ToU32((float4)Mod.GetType("KITN.GameUiColors").GetProperty("Pending").GetValue(null));
-        int PendingHeader() => WindowDrawList("autopilot").VtxBuffer.Span.ToArray()
-            .Count(vertex => vertex.col == pendingInk && vertex.pos.Y < 90);
+        int PendingHeader() => DrawLists("/kitn-card-page-controls").SelectMany(l => l.VtxBuffer.Span.ToArray())
+            .Count(vertex => vertex.col == pendingInk);
         int headerInk = PendingHeader();
         string flightPhase = (string)Window.GetType().GetMethod("GuidancePhase", BindingFlags.NonPublic | BindingFlags.Static)
             .Invoke(null, new[] { (object)Profile, Guidance, Flight });
@@ -1502,8 +1585,8 @@ internal static class Program
         int oldSelection = (int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner);
         Click(395, 400, "autopilot");
         Check((int)planner.GetType().GetProperty("SelectedIndex").GetValue(planner) != oldSelection, "Porkchop cell click did not change the selection");
-        Check(Click(80, 618, "autopilot") == "transfer_create", "Create node does not reach the physics action queue");
-        Check(Click(80, 160, "autopilot") == "transfer_search", "Calculate does not reach the physics action queue");
+        Check(Click(80, 639, "autopilot") == "transfer_create", "Create node does not reach the physics action queue");
+        Check(Click(80, 197, "autopilot") == "transfer_search", "Calculate does not reach the physics action queue");
         ManualPorkchopChecks(planner, grid, request);
         Set(planner, "_search", completionType.GetProperty("Task").GetValue(completion));
         for (int frame = 0; frame < 3; frame++) Frame(true);
@@ -1519,18 +1602,18 @@ internal static class Program
         Set(planner, "SelectedIndex", -1);
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Save("maneuver-better-route-minimum.png", 580, 420, 12, 12);
-        Check(Click(80, 160, "autopilot") == "transfer_improve", "Better-route confirmation button is unavailable at minimum window size");
+        Check(Click(80, 197, "autopilot") == "transfer_improve", "Better-route confirmation button is unavailable at minimum window size");
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-better-route.png", 800, 670, 12, 12);
         planner.GetType().GetMethod("ClearRouteProblem", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(planner, null);
         Call(planner, "SelectBest", false);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(85, 647, "autopilot");
+        ToggleSearchOptions();
         for (int frame = 0; frame < 3; frame++) Frame(true, true);
         Check(HasVisiblePlot(), "Expanded search options push the Porkchop out of the minimum window");
         Save("maneuver-porkchop-expanded-minimum.png", 580, 420, 12, 12);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(85, 647, "autopilot");
+        ToggleSearchOptions();
         Set(page, "_mode", 2); Call(planner, "SelectBest", true);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-earliest.png", 800, 670, 12, 12);
@@ -1541,7 +1624,7 @@ internal static class Program
         Set(page, "_mode", 0);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-german.png", 800, 670, 12, 12);
-        Click(710, 225, "autopilot");
+        Click(500, 131, "autopilot");
         Save("maneuver-body-dropdown.png", 800, 670, 12, 12);
         var io = ImGui.GetIO();
         io.AddKeyEvent(ImGuiKey.DownArrow, true); Frame(); io.AddKeyEvent(ImGuiKey.DownArrow, false); Frame();
@@ -1557,7 +1640,7 @@ internal static class Program
         Set(page, "_mode", 1); Set(planner, "UnavailableReason", null); Set(planner, "Grid", grid);
         for (int frame = 0; frame < 3; frame++) Frame(true);
         Save("maneuver-oberth-button.png", 800, 670, 12, 12);
-        Check(Click(130, 280, "autopilot") == "transfer_oberth", "Lowest delta-v Oberth button does not enqueue its dedicated search action");
+        Check(Click(130, 197, "autopilot") == "transfer_oberth", "Lowest delta-v Oberth button does not enqueue its dedicated search action");
         LandingSettingsUiChecks();
         Set(Window, "Planner", null); Set(Window, "_tab", 0); ((IDisposable)planner).Dispose();
     }
@@ -1576,7 +1659,7 @@ internal static class Program
         Set(planner, "Grid", result); Call(planner, "SelectBest", false); Set(page, "_mode", 1);
         var selected = planner.GetType().GetProperty("Selected").GetValue(planner);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(110, 256, "autopilot");
+        Click(110, 162, "autopilot");
         Check((int)page.GetType().GetField("_mode", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(page) == 0
             && ReferenceEquals(planner.GetType().GetProperty("Grid").GetValue(planner), result)
             && selected.Equals(planner.GetType().GetProperty("Selected").GetValue(planner)), "Switching to Porkchop loses the selected Oberth route");
@@ -1586,7 +1669,7 @@ internal static class Program
         uint accent = (uint)Mod.GetType("KITN.GameUiColors").GetProperty("AccentU32").GetValue(null);
         Check((accent & 255) > 180 && (accent >> 8 & 255) > 120 && (accent >> 16 & 255) < 120,
             "Action accent is not the game's yellow color");
-        Check(WindowDrawList("autopilot").VtxBuffer.Span.ToArray().Count(v => v.col == accent && v.pos.Y > 145 && v.pos.Y < 175) >= 4,
+        Check(DrawLists("/kitn-card-page-controls").SelectMany(l => l.VtxBuffer.Span.ToArray()).Count(v => v.col == accent && v.pos.Y > 180 && v.pos.Y < 215) >= 4,
             "Calculate lost its yellow primary-button background");
         var cells = (Array)plotGrid.GetType().GetField("Cells").GetValue(plotGrid);
         int width = (int)overview.GetType().GetField("Width").GetValue(overview), height = (int)overview.GetType().GetField("Height").GetValue(overview);
@@ -1611,9 +1694,12 @@ internal static class Program
             && cells.GetValue(valid).Equals(planner.GetType().GetProperty("Selected").GetValue(planner)), "Plot click selects a snapped Oberth cell instead of the displayed route");
         Set(planner, "Grid", originalGrid); Call(planner, "SelectBest", false);
         for (int frame = 0; frame < 3; frame++) Frame(true);
-        Click(85, 647, "autopilot");
+        ToggleSearchOptions();
         ImGui.GetIO().AddMousePosEvent(-1000, -1000); Frame();
         var before = PlotRectangle(); float plotHeight = before.max.Y - before.min.Y;
+        Check(DrawLists("/kitn-navigation").Length == 1 && DrawLists("/kitn-card-page-controls").Length == 1,
+            "Navigation and page controls do not have independent fixed regions");
+        string fixedHeader = PlannerChrome();
         ImGui.GetIO().AddMousePosEvent(300, 380); Frame();
         ImGui.GetIO().AddMouseWheelEvent(0, -1);
         for (int frame = 0; frame < 4; frame++) Frame();
@@ -1622,11 +1708,12 @@ internal static class Program
         Save("porkchop-scroll-regression.png", 800, 800, 12, 12);
         Check(after.min.Y < before.min.Y - 10 && Math.Abs(after.max.Y - after.min.Y - plotHeight) < 1,
             "Scrolling resizes the Porkchop and changes hovered coordinates");
+        Check(PlannerChrome() == fixedHeader, "Scrolling content moves or repaints fixed navigation and page controls");
         for (int frame = 0; frame < 16; frame++)
         {
             ImGui.GetIO().AddMousePosEvent(after.min.X + (after.max.X - after.min.X) * (0.2f + (frame % 5) * 0.1f),
                 Math.Max(225, after.min.Y + (after.max.Y - after.min.Y) * (0.25f + (frame % 3) * 0.2f)));
-            Frame();
+            Frame(); Frame(); // Native tooltips measure their window on the first hover frame.
             var tooltip = TooltipRectangle();
             Check(tooltip.max.X - tooltip.min.X > 320 && tooltip.max.X - tooltip.min.X < 360
                 && tooltip.max.Y - tooltip.min.Y < 350 && tooltip.min.Y >= 0 && tooltip.max.Y <= ImGui.GetIO().DisplaySize.Y,
@@ -1636,8 +1723,9 @@ internal static class Program
         ImGui.GetIO().AddMousePosEvent(300, 300); ImGui.GetIO().AddMouseWheelEvent(0, 20);
         for (int frame = 0; frame < 4; frame++) Frame();
         ImGui.GetIO().AddMousePosEvent(-1000, -1000); Frame();
-        Click(85, 647, "autopilot");
+        ToggleSearchOptions();
         Console.WriteLine("PASS cached Oberth → Porkchop switch, exact plot selection, yellow actions and stable tooltip/plot geometry while scrolling");
+        Console.WriteLine("PASS navigation and page controls stay fixed while body content scrolls");
     }
 
     private static unsafe (float2 min, float2 max) TooltipRectangle()
@@ -1821,12 +1909,17 @@ internal static class Program
             .Count(vertex => vertex.col == guide && vertex.pos.Y >= 240 && vertex.pos.Y < 400) >= 8);
     }
 
+    private static unsafe ImDrawListPtr[] DrawLists(string token) => ImGui.GetDrawData().CmdLists.Span.ToArray()
+        .Where(list => Marshal.PtrToStringUTF8((IntPtr)list._OwnerName)?.Contains(token, StringComparison.Ordinal) == true).ToArray();
+
     private static string PlannerChrome()
     {
         string Chrome(string id) => string.Join(";", WindowDrawList(id).VtxBuffer.Span.ToArray()
             .Where(vertex => vertex.col == ConsoleStyle.PanelU32 || vertex.col == ConsoleStyle.ActiveToolU32)
             .Select(vertex => $"{vertex.pos.X:R},{vertex.pos.Y:R},{vertex.col}"));
-        return Chrome("autopilot") + "|" + Chrome("mission_time");
+        string Fixed(string token) => string.Join(";", DrawLists(token).SelectMany(list => list.VtxBuffer.Span.ToArray())
+            .Select(vertex => $"{vertex.pos.X:R},{vertex.pos.Y:R},{vertex.col}"));
+        return Chrome("autopilot") + "|" + Chrome("mission_time") + "|" + Fixed("/kitn-navigation") + "|" + Fixed("/kitn-card-page-controls");
     }
 
     private static void Frame(bool place = false, bool small = false)
@@ -1839,7 +1932,7 @@ internal static class Program
             ImGui.SetNextWindowPos(new float2(20, 20), ImGuiCond.Always);
             ImGui.SetWindowSize("KITN · LEO Test Vehicle###KITN", small ? new float2(560, 400) : new float2(780, 650), ImGuiCond.Always);
         }
-        MainAction = (string)Call(Window, "Draw", true, Profile, Guidance, Flight, Clock, true, false, null);
+        MainAction = (string)Call(Window, "Draw", true, Profile, Guidance, Flight, Clock, true, false, Landing);
         if (Focus == "mission_time") ImGui.SetNextWindowFocus();
         if (place)
         {
@@ -1888,6 +1981,24 @@ internal static class Program
         io.AddMouseButtonEvent(0, true); Frame();
         io.AddMouseButtonEvent(0, false); Frame();
         return id == "autopilot" ? MainAction : TimerAction;
+    }
+
+    private static void ScrollBody(float amount)
+    {
+        Focus = "autopilot"; Frame(); Focus = null;
+        ImGui.GetIO().AddMousePosEvent(420, 355); Frame();
+        ImGui.GetIO().AddMouseWheelEvent(0, amount);
+        for (int frame = 0; frame < 5; frame++) Frame();
+        ImGui.GetIO().AddMousePosEvent(-1000, -1000); Frame();
+    }
+
+    private static void ToggleSearchOptions()
+    {
+        ScrollBody(-20);
+        var header = DrawLists("/kitn-card-transfer-options").SelectMany(l => l.VtxBuffer.Span.ToArray()).Take(4).Select(v => v.pos).ToArray();
+        Check(header.Length == 4, "Search options header is missing");
+        Click((header.Min(p => p.X) + header.Max(p => p.X)) / 2, (header.Min(p => p.Y) + header.Max(p => p.Y)) / 2, "autopilot");
+        ScrollBody(20);
     }
 
     private static unsafe ImDrawListPtr WindowDrawList(string id)
