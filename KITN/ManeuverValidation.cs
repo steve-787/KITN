@@ -107,6 +107,8 @@ namespace KITN
             var request = Snapshot(vehicle);
             request.Earliest = Now + EarliestDelay; request.Latest = request.Earliest + SearchWindow;
             request.MinimumDuration = MinimumDuration; request.MaximumDuration = MaximumDuration;
+            if (HohmannMode && !TransferHohmann.Configure(request, HohmannOptions))
+            { Message = "transfer.hohmann_geometry"; _replanPending = false; return; }
             request.Width = TransferMath.DepartureSamples(request);
             request.ExcludedWindows = _excludedWindows.ToArray();
             request.MinimumTransferApoapsis = _minimumTransferApoapsis;

@@ -28,6 +28,11 @@ of ALGLIB, retains the target's actual inclination, adds a safe stand-off, and
 corrects KSA's finite departure burn. Maneuver execution and close RCS guidance
 are implemented for KSA.
 
+`KITN/TransferHohmann.cs` adapts `HohmannTransferParameters` from
+`MechJebLib/Functions/Astro.cs` under the same MIT alternative. KITN adds
+validated scalar inputs, departure-phase seeds, configurable search bounds,
+and refinement against actual orbital snapshots and finite burns.
+
 ## MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

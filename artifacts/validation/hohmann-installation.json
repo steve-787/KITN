@@ -1,0 +1,10 @@
+{
+  "installedAt": "2026-11-15T17:21:26.8989441+01:00",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "5D416E0052554FB521F2E4FEF38FC85B4FD63AB5745BED806D5230161EE090AF",
+  "previousSha256": "686B19EF00BB22AFC3F009DB0D40CA5C840B260421C1E8A988419893F79D6857",
+  "backupDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\backups\\hohmann-20261115-172126",
+  "runningDllBackup": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll.previous-hohmann-20261115-172126",
+  "baselineCommit": "7e3b51cc35d170ad68b16e5ec0d382bbd4006723",
+  "gameRestartRequired": true
+}

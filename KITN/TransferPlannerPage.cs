@@ -8,7 +8,8 @@ namespace KITN
     internal sealed class TransferPlannerPage
     {
         private int _mode, _timeUnit = 1;
-        private readonly string[] _modes = new string[3];
+        private readonly string[] _modes = new string[4];
+        private ManeuverPlanner _displayedPlanner;
         private TransferGrid _plotGrid;
         private TransferPlotData _plotData;
         private bool _plotCapture;
@@ -16,6 +17,8 @@ namespace KITN
         public string DrawControls(ManeuverPlanner planner, bool locked)
         {
             if (planner == null) { GameUiColors.MessageText(L10n.Get("transfer.require_orbit")); return null; }
+            if (!ReferenceEquals(_displayedPlanner, planner))
+            { _displayedPlanner = planner; _mode = planner.HohmannMode ? 3 : 0; }
             string action = null;
             float scale = ConsoleStyle.EffectiveInterfaceScale;
             string phase = planner.IsExecuting ? planner.DisplayMessage : L10n.Get(planner.IsSearching ? "transfer.calculating" : "transfer.ready");
@@ -58,9 +61,13 @@ namespace KITN
                     AutopilotWindow.FitHeaderText(phase, phaseWidth));
                 ModWindowStyle.Hint(phase);
                 _modes[0] = "Porkchop"; _modes[1] = L10n.Get("transfer.lowest"); _modes[2] = L10n.Get("transfer.earliest");
+                _modes[3] = L10n.Get("transfer.hohmann");
                 int selected = ConsoleWidgets.Segmented("transfer-mode".AsSpan(), _modes, _mode);
                 if (selected >= 0)
                 {
+                    bool hohmann = selected == 3;
+                    if (planner.HohmannMode != hohmann)
+                    { planner.HohmannMode = hohmann; planner.SettingsChanged(); }
                     _mode = selected;
                     if (_mode != 0) planner.SelectBest(_mode == 2);
                 }
@@ -112,7 +119,7 @@ namespace KITN
                     if (_mode != 0)
                     {
                         ImGui.BeginDisabled(planner.IsSearching || planner.IsChecking || planner.NeedsBetterRoute);
-                        try { if (Button(_mode == 1 ? "transfer.lowest" : "transfer.earliest")) planner.SelectBest(_mode == 2); }
+                        try { if (Button(_mode == 2 ? "transfer.earliest" : "transfer.lowest")) planner.SelectBest(_mode == 2); }
                         finally { ImGui.EndDisabled(); }
                     }
                     var solution = planner.Selected;
@@ -131,6 +138,7 @@ namespace KITN
                         UiIcons.Text("calendar-clock", L10n.Format("transfer.arrival_epoch", Epoch(solution.ArrivalTime)), GameUiColors.Muted);
                         if (solution.Flyby != null) ImGui.Text(L10n.Format("transfer.via", solution.Flyby.Body.Id));
                         if (planner.Grid.Request.Oberth) ImGui.TextColored(GameUiColors.Muted, L10n.Get("transfer.oberth_route"));
+                        if (planner.Grid.Request.Hohmann) ImGui.TextColored(GameUiColors.Muted, L10n.Get("transfer.hohmann_route"));
                         ModWindowStyle.Hint(L10n.Format("transfer.cost_hint", solution.DepartureDv.ToString("N0", L10n.Culture), solution.CaptureDv.ToString("N0", L10n.Culture)));
                         ImGui.BeginDisabled(locked || planner.IsExecuting || !planner.CanCreate);
                         try { if (Primary("transfer.create")) action = "transfer_create"; }
@@ -192,6 +200,7 @@ namespace KITN
             ImGui.BeginDisabled(locked || planner.IsSearching || planner.IsExecuting || planner.IsChecking);
             try
             {
+                if (_mode == 3) { DrawHohmannOptions(planner); return; }
                 if (!ImGui.CollapsingHeader(L10n.Get("transfer.window") + "###transfer-window")) return;
                 ConsoleWidgets.BeginRow(L10n.Get("transfer.units").AsSpan());
                 try
@@ -223,7 +232,8 @@ namespace KITN
                 ModWindowStyle.Hint(L10n.Get("transfer.capture_hint"));
                 float periapsis = planner.PeriapsisKm;
                 if (Input("transfer.periapsis", ref periapsis)) { planner.PeriapsisKm = periapsis; planner.SettingsChanged(); }
-                Checkbox("transfer.auto_warp", ref planner.AutoWarp);
+                bool autoWarp = planner.AutoWarp;
+                if (Checkbox("transfer.auto_warp", ref autoWarp)) planner.AutoWarp = autoWarp;
                 bool assists = planner.GravityAssists;
                 ImGui.BeginDisabled(planner.HasNestedArrival);
                 bool assistsChanged;
@@ -238,6 +248,42 @@ namespace KITN
                 }
             }
             finally { ImGui.EndDisabled(); }
+        }
+
+        private void DrawHohmannOptions(ManeuverPlanner planner)
+        {
+            ImGui.TextWrapped(L10n.Get("transfer.hohmann_hint"));
+            if (!ImGui.CollapsingHeader(L10n.Get("transfer.hohmann_settings") + "###hohmann-settings")) return;
+            var s = planner.HohmannOptions.Copy();
+            s.DepartureLeadSeconds = HohmannSlider("transfer.hohmann_lead", s.DepartureLeadSeconds, 60, 3600, "s");
+            s.SynodicWindows = (int)Math.Round(HohmannSlider("transfer.hohmann_windows", s.SynodicWindows, 1, 3, ""));
+            s.DurationTolerancePercent = HohmannSlider("transfer.hohmann_tolerance", s.DurationTolerancePercent, 1, 50, "%");
+            // Property values are copied to locals because the native controls take ref parameters.
+            bool sCapture = s.IncludeCapture;
+            if (Checkbox("transfer.capture", ref sCapture)) s.IncludeCapture = sCapture;
+            ModWindowStyle.Hint(L10n.Get("transfer.capture_hint"));
+            bool warp = s.AutoWarp;
+            if (Checkbox("transfer.auto_warp", ref warp)) s.AutoWarp = warp;
+            float periapsis = planner.PeriapsisKm;
+            if (Input("transfer.periapsis", ref periapsis)) { planner.PeriapsisKm = periapsis; planner.SettingsChanged(); }
+            if (Button("proximity.defaults")) s = new HohmannSettings();
+            ImGui.TextColored(GameUiColors.Muted, L10n.Get("settings.saved"));
+            if (s.IsValid && !planner.HohmannOptions.Matches(s))
+            {
+                bool boundsChanged = s.DepartureLeadSeconds != planner.HohmannOptions.DepartureLeadSeconds
+                    || s.SynodicWindows != planner.HohmannOptions.SynodicWindows
+                    || s.DurationTolerancePercent != planner.HohmannOptions.DurationTolerancePercent;
+                planner.HohmannOptions = s;
+                Settings?.SetHohmann(s, Environment.TickCount64);
+                if (boundsChanged) planner.SettingsChanged(); else planner.SelectBest(false);
+            }
+        }
+
+        private static float HohmannSlider(string key, float value, float low, float high, string unit)
+        {
+            ConsoleWidgets.BeginRow(L10n.Get(key).AsSpan());
+            try { SettingsSlider.Float(key, ref value, low, high, "N0", unit); return value; }
+            finally { ConsoleWidgets.EndRow(); }
         }
 
         private static float PlotHeight()

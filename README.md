@@ -64,6 +64,8 @@ Enable the **Remote Control** widget in Mod Settings to select another simulated
 
 Transfer maneuvers are checked against Kitten Space Agency's own trajectory prediction before the node is created. If the prediction says the burn will not reach the target, KITN refuses it and tells you why.
 
+In **Maneuvers**, select **Hohmann** for a transfer seeded by MechJeb's Hohmann flight time and departure phase. KITN corrects the solution for the actual orbits and finite burns using its MechJeb-derived Lambert solver. Open **Hohmann settings** to set departure lead time (default 300 seconds), synodic windows to search (default 1), flight-time tolerance around the Hohmann estimate (default ±20%), estimated capture cost and automatic warp. These settings are saved in `ui_layout.json`. Arrival periapsis remains adjustable for each target. Create or execute the departure node, then plan capture after the target encounter is confirmed. Co-orbital and counter-rotating orbit pairs require another planning mode.
+
 ## Logs
 
 The mod writes `kitn.log`, `kitn_telemetry.csv` and `kitn_api_dump.txt` next to the mod DLL in the mods folder. Logging and telemetry are switched in the diagnostics tab.

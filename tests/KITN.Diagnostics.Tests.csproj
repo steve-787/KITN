@@ -18,6 +18,9 @@
     <Compile Include="ProximitySettingsTests.cs" />
     <Compile Include="../KITN/ProximitySettings.cs" Link="ProximitySettings.cs" />
     <Compile Include="TransferTests.cs" />
+    <Compile Include="HohmannTests.cs" />
+    <Compile Include="../KITN/TransferHohmann.cs" Link="TransferHohmann.cs" />
+    <Compile Include="../KITN/HohmannSettings.cs" Link="HohmannSettings.cs" />
     <Compile Include="TransferNestedTests.cs" />
     <Compile Include="TransferOptimizationTests.cs" />
     <Compile Include="TransferSafetyTests.cs" />

@@ -24,6 +24,7 @@ namespace KITN
             "transfer.no_safe_route", "transfer.missed_burn", "transfer.warp_interrupted", "transfer.capture_unsafe",
             "transfer.capture_missed", "transfer.failed", "transfer.invalid_bounds", "transfer.no_solution", "transfer.no_early",
             "transfer.stale", "transfer.invalid_cell", "transfer.oberth_no_window",
+            "transfer.hohmann_geometry", "transfer.hohmann_no_solution",
             "transfer.assist_missed", "transfer.assist_unsafe", "transfer.route_hierarchy",
             "landing.invalid_settings", "landing.require_control", "landing.require_pad", "landing.require_fuel",
             "landing.require_thrust", "landing.fuel_exhausted", "landing.no_window", "landing.attitude_failed",

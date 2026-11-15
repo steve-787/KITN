@@ -83,6 +83,7 @@ namespace KITN
         public double CentralSafetyRadius;
         public bool GravityAssists;
         public bool Oberth;
+        public bool Hohmann;
         public TransferBodySnapshot[] AssistBodies = Array.Empty<TransferBodySnapshot>();
         // Outer planet through final moon, each local orbit expressed in the central inertial axes.
         public TransferBodySnapshot[] ArrivalPath = Array.Empty<TransferBodySnapshot>();
@@ -270,6 +271,7 @@ namespace KITN
             if (!request.Valid) throw new ArgumentException("Invalid transfer search bounds or orbital state.");
             request.Rejections.Clear();
             var grid = SearchPass(request, cancellation, false, value => progress?.Invoke(value * 40 / 100));
+            if (request.Hohmann) TransferHohmann.AddSeeds(grid, cancellation);
             TransferGravityAssist.Search(grid, cancellation, value => progress?.Invoke(40 + value * 25 / 100));
             TransferMinimumSearch.Refine(grid, cancellation, value => progress?.Invoke(65 + value * 15 / 100));
             cancellation.ThrowIfCancellationRequested();

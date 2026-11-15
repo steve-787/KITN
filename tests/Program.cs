@@ -4,6 +4,9 @@ using KITN;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("MechJeb Hohmann impulses and phase windows reach inward, outward and retrograde targets", HohmannTests.Calculations),
+    ("Hohmann search resolves phase minima and respects settings and cancellation", HohmannTests.Search),
+    ("Hohmann settings migrate, persist and preserve damaged files", HohmannTests.Persistence),
     ("Direct distant-moon transfers fly through the parent SOI and capture only at the moon", TransferNestedTests.DirectArrival),
     ("Oberth results retain an independent normal Porkchop without recalculation", TransferOptimizationTests.OberthPorkchop),
     ("Independent widget visibility, themes and frame settings migrate and persist", UiExperienceTests.WidgetPersistence),

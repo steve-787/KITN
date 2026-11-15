@@ -34,7 +34,19 @@ namespace KITN
         public double Now { get; private set; }
         public double EarliestDelay = 300, SearchWindow = 86400, MinimumDuration = 3600, MaximumDuration = 86400;
         public float PeriapsisKm = 100, MaximumDv = 12000;
-        public bool IncludeCapture = true, AutoWarp = true;
+        private bool _includeCapture = true, _autoWarp = true;
+        public bool IncludeCapture
+        {
+            get => HohmannMode ? HohmannOptions.IncludeCapture : _includeCapture;
+            set { if (HohmannMode) HohmannOptions.IncludeCapture = value; else _includeCapture = value; }
+        }
+        public bool AutoWarp
+        {
+            get => HohmannMode ? HohmannOptions.AutoWarp : _autoWarp;
+            set { if (HohmannMode) HohmannOptions.AutoWarp = value; else _autoWarp = value; }
+        }
+        public bool HohmannMode;
+        public HohmannSettings HohmannOptions = new HohmannSettings();
         public bool PreferEarliest;
         public bool GravityAssists;
         public bool OberthMode;
@@ -293,7 +305,7 @@ namespace KITN
                 switch (action)
                 {
                     case "transfer_search":
-                        if (IsChecking) return;
+                        if (IsChecking || IsExecuting || IsSearching) return;
                         OberthMode = false;
                         _excludedWindows.Clear(); ResetRouteAdjustments();
                         BeginSearch(vehicle, false);
@@ -301,7 +313,7 @@ namespace KITN
                     case "transfer_oberth":
                         if (IsChecking || IsExecuting) return;
                         if (!CanSearchOberth) { Message = "transfer.oberth_requires_earth"; return; }
-                        OberthMode = true; PreferEarliest = false;
+                        HohmannMode = false; OberthMode = true; PreferEarliest = false;
                         _excludedWindows.Clear(); ResetRouteAdjustments(); BeginSearch(vehicle, false);
                         break;
                     case "transfer_improve": ImproveRoute(vehicle); break;
@@ -335,6 +347,7 @@ namespace KITN
                 SelectBest(PreferEarliest);
                 if (!Selected.Valid && Grid.Request.Oberth && !double.IsFinite(TransferOberth.Departure(Grid.Request, Grid.Request.Earliest)))
                     Message = "transfer.oberth_no_window";
+                if (!Selected.Valid && Grid.Request.Hohmann) Message = "transfer.hohmann_no_solution";
                 int valid = 0;
                 foreach (var cell in Grid.Cells) if (cell.Valid) valid++;
                 Diag.Info("TRANSFER", Diag.F($"event=search_completed target=\"{Target.Id}\" valid_cells={valid} refined_candidates={Grid.Candidates.Count} selected={SelectedIndex} best_effort={Selected.BestEffort} departure_s={Selected.Departure:F3} dv_mps={Selected.DepartureDv:F3} flyby=\"{Selected.Flyby?.Body.Id ?? "none"}\""));

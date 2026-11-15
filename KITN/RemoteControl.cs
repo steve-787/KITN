@@ -46,6 +46,7 @@ namespace KITN
                 Rendezvous.RendezvousOptions = settings.Rendezvous.Copy();
                 Rendezvous.DockingOptions = settings.Docking.Copy();
                 Planner.GravityAssists = settings.GravityAssists;
+                Planner.HohmannOptions = settings.Hohmann.Copy();
             }
         }
 

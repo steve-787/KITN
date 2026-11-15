@@ -30,6 +30,7 @@ namespace KITN
         public LandingSettings Landing { get; set; } = new LandingSettings();
         public RendezvousSettings Rendezvous { get; set; } = new RendezvousSettings();
         public DockingSettings Docking { get; set; } = new DockingSettings();
+        public HohmannSettings Hohmann { get; set; } = new HohmannSettings();
         public bool MainWindowOpen { get; set; } = true;
         public Dictionary<string, UiWidgetPreferences> Widgets { get; set; }
     }
@@ -115,6 +116,7 @@ namespace KITN
         public LandingSettings Landing { get; private set; } = new LandingSettings();
         public RendezvousSettings Rendezvous { get; private set; } = new RendezvousSettings();
         public DockingSettings Docking { get; private set; } = new DockingSettings();
+        public HohmannSettings Hohmann { get; private set; } = new HohmannSettings();
         public UiLayoutStore(string path) { _path = Path.GetFullPath(path); }
         public UiWindowBounds Find(string id) => _windows.TryGetValue(id, out UiWindowBounds bounds) ? bounds : null;
         public UiWidgetPreferences Widget(string id) => _widgets.TryGetValue(id, out var widget) ? widget.Copy() : new UiWidgetPreferences();
@@ -135,6 +137,7 @@ namespace KITN
                 var landing = new LandingSettings();
                 var rendezvous = new RendezvousSettings();
                 var docking = new DockingSettings();
+                var hohmann = new HohmannSettings();
                 bool mainOpen = true;
                 var widgets = new Dictionary<string, UiWidgetPreferences>();
                 if (File.Exists(_path))
@@ -144,7 +147,7 @@ namespace KITN
                     UiLayoutDocument file = JsonSerializer.Deserialize<UiLayoutDocument>(stream, Json);
                     if (file == null || file.Version != 1 || file.Windows == null || file.Windows.Count > 16
                         || file.Settings == null || !Enum.IsDefined(file.Settings.Theme) || file.Settings.Landing?.IsValid != true
-                        || file.Settings.Rendezvous?.IsValid != true || file.Settings.Docking?.IsValid != true)
+                        || file.Settings.Rendezvous?.IsValid != true || file.Settings.Docking?.IsValid != true || file.Settings.Hohmann?.IsValid != true)
                         throw new InvalidDataException("Unsupported UI layout format");
                     foreach (var window in file.Windows)
                         if (string.IsNullOrWhiteSpace(window.Key) || window.Key.Length > 80 || window.Value?.IsValid != true)
@@ -159,6 +162,7 @@ namespace KITN
                     gravityAssists = file.Settings.GravityAssists;
                     landing = file.Settings.Landing.Copy();
                     rendezvous = file.Settings.Rendezvous.Copy(); docking = file.Settings.Docking.Copy();
+                    hohmann = file.Settings.Hohmann.Copy();
                     mainOpen = file.Settings.MainWindowOpen;
                     if (file.Settings.Widgets != null)
                     {
@@ -179,6 +183,7 @@ namespace KITN
                 GravityAssists = gravityAssists;
                 Landing = landing;
                 Rendezvous = rendezvous; Docking = docking;
+                Hohmann = hohmann;
                 IsLoaded = true; IsDirty = false; _retryAfterMs = 0;
                 return true;
             }
@@ -283,6 +288,12 @@ namespace KITN
             Docking = settings.Copy(); IsDirty = true; _lastChangeMs = nowMs; return true;
         }
 
+        public bool SetHohmann(HohmannSettings settings, long nowMs)
+        {
+            if (!IsLoaded || settings?.IsValid != true || Hohmann.Matches(settings)) return false;
+            Hohmann = settings.Copy(); IsDirty = true; _lastChangeMs = nowMs; return true;
+        }
+
         public UiLayoutSaveResult Flush(long nowMs, bool force = false)
         {
             if (!IsLoaded || !IsDirty || (!force && (nowMs - _lastChangeMs < 500 || nowMs < _retryAfterMs)))
@@ -295,7 +306,7 @@ namespace KITN
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows,
-                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, AllowRemoteControl = AllowRemoteControl, AllowPhysicsWarp = AllowPhysicsWarp, DetachedWindows = DetachedWindows, GravityAssists = GravityAssists, Landing = Landing.Copy(), Rendezvous = Rendezvous.Copy(), Docking = Docking.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
+                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, AllowRemoteControl = AllowRemoteControl, AllowPhysicsWarp = AllowPhysicsWarp, DetachedWindows = DetachedWindows, GravityAssists = GravityAssists, Landing = Landing.Copy(), Rendezvous = Rendezvous.Copy(), Docking = Docking.Copy(), Hohmann = Hohmann.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
                     if (stream.Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     stream.Flush(true);
                 }
