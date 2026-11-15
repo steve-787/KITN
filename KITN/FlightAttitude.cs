@@ -95,7 +95,11 @@ namespace KITN
 
         public static void StopTracking(FlightComputer fc)
         {
-            if (fc != null) fc.RateHold(VehicleReferenceFrame.EclBody);
+            if (fc == null) return;
+            // KSA reuses CustomAttitudeTarget as angular rate when tracking is None.
+            // RateHold leaves it unchanged, so old Euler angles would command continuous spin.
+            fc.CustomAttitudeTarget = double3.Zero;
+            fc.RateHold(VehicleReferenceFrame.EclBody);
         }
 
         public static double3 CustomAngles(double3 positionCci, doubleQuat targetControlToCci)

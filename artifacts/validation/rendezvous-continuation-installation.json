@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-11-15T02:17:48.7810962+01:00",
+  "builtDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "5809AF8C840A8371B054380D8976FF144966C737E90EAEBC28B58029198DDC7A",
+  "verified": true,
+  "rootCause": "The live log shows departure completion followed by abort: native actual-coast prediction missed the target by 12620 m, exceeding the 2000 m local RCS limit.",
+  "correction": "Automatically correct the actual orbit, retain encounter time when possible, predict and execute short burns at matching reduced throttle, continue through braking and RCS approach, require relative speed <=0.02 m/s for two seconds.",
+  "checks": [
+    "Native regression reproduces 12663 m actual coast miss and continues automatically to correction, braking and 100.02 m stand-off at 0.014 m/s",
+    "Native finite burns, connected mixture fuel, owned nodes, cancellation, control restoration, warp and ignition guards passed",
+    "Rendezvous/Docking UI and disabled actions passed in EN/DE at both widths",
+    "Rendezvous/Docking simulations and correction fuel, timing and cancellation guards passed",
+    "EN/DE localization format integrity passed",
+    "Release and native test builds: 0 warnings, 0 errors"
+  ],
+  "nativeTestLog": "artifacts/validation/rendezvous-continuation-native.txt",
+  "diagnosticsTestLog": "artifacts/validation/rendezvous-continuation-diagnostics.txt",
+  "preservedLoadedDll": "KITN.dll.previous-20261115-021730"
+}

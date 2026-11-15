@@ -9,7 +9,7 @@ namespace KITN
     /// <summary>Scrollable categories and a data-driven widget list leave room for future preferences.</summary>
     internal sealed class ModSettingsPage
     {
-        private static readonly ModPage[] Widgets = { new ModPage("settings.instruments", "timer") };
+        private static readonly ModPage[] Widgets = { new ModPage(0, "settings.instruments", "timer") };
         private static readonly string[] WidgetIds = { "mission_time" };
         private static readonly UiTheme[] Themes = Enum.GetValues<UiTheme>();
 
@@ -19,6 +19,24 @@ namespace KITN
             ImGui.BeginDisabled(settings?.IsLoaded != true);
             try
             {
+                using (PanelLayout.Section("settings-windows"))
+                {
+                    if (ImGui.CollapsingHeader(L10n.Get("settings.windows") + "###settings-windows", ImGuiTreeNodeFlags.DefaultOpen))
+                    {
+                        bool supported = ModWindowStyle.SupportsDetachedWindows;
+                        ConsoleWidgets.BeginRow(L10n.Get("settings.detached_windows").AsSpan());
+                        try
+                        {
+                            ImGui.BeginDisabled(!supported);
+                            bool detached = settings?.DetachedWindows ?? false;
+                            if (ConsoleWidgets.Checkbox("detached-windows".AsSpan(), ref detached, false))
+                                settings?.SetDetachedWindows(detached, Environment.TickCount64);
+                            ImGui.EndDisabled();
+                            ModWindowStyle.Hint(L10n.Get(supported ? "settings.detached_windows_hint" : "settings.detached_windows_unavailable"));
+                        }
+                        finally { ConsoleWidgets.EndRow(); }
+                    }
+                }
                 using (PanelLayout.Section("settings-widgets"))
                 {
                     if (ImGui.CollapsingHeader(L10n.Get("settings.widgets") + "###settings-widgets", ImGuiTreeNodeFlags.DefaultOpen))
@@ -45,11 +63,11 @@ namespace KITN
             ImGui.Dummy(new float2(0, 8 * scale));
             if (settings?.IsLoaded == false)
             {
-                UiIcons.Text("circle-alert", L10n.Get("settings.load_failed"), GameUiColors.Pending);
+                UiIcons.Text("circle-alert", L10n.Get("settings.load_failed"), GameUiColors.Error);
                 if (UiIcons.Button("settings.retry")) settings.Load();
             }
             else UiIcons.Text(settings?.LastError != null ? "circle-alert" : "info",
-                L10n.Get(settings?.LastError != null ? "settings.save_failed" : settings?.IsDirty == true ? "settings.saving" : "settings.saved"), GameUiColors.Muted);
+                L10n.Get(settings?.LastError != null ? "settings.save_failed" : settings?.IsDirty == true ? "settings.saving" : "settings.saved"), GameUiColors.Message(settings?.LastError != null));
             float remaining = ImGui.GetContentRegionAvail().Y;
             ImGui.Dummy(new float2(0, Math.Max(8 * scale, remaining - 72 * scale)));
             ImGui.Separator();

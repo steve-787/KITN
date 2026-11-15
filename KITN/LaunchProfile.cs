@@ -38,6 +38,7 @@ namespace KITN
         public double CurrentPitchDeg = 90.0;
         public double DesiredPitchDeg = 90.0;
         private LocalizedMessage _status = new LocalizedMessage("status.ready", Array.Empty<object>());
+        internal string StatusKey => _status.Key;
         public string StatusMessage
         {
             get => _status.ToString();

@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-11-14T23:12:04.3300890+01:00",
+  "buildDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "450030B7D465738CEBF3782025ADAE0CFCF5C73C9AF0EDE6CFE640C88C907365",
+  "hashesMatch": true,
+  "validation": [
+    "Release and native test builds: zero warnings/errors",
+    "Transfer, ephemeris, interplanetary, capture and localization diagnostics",
+    "Native Earth -> Jupiter -> Himalia route, correct gravity and capture defaults",
+    "Next-leg search and cancellation; Earth Oberth settings reset between legs",
+    "Complete wrapped red error text at minimum size in English and German",
+    "Native SOI shortfall, Porkchop axes and header/widget regression checks",
+    "git diff --check"
+  ],
+  "routeBehavior": "Earth -> Himalia searches Earth -> Jupiter first; after KITN capture, searches Jupiter -> Himalia. Each leg requires separate selection and execution; costs/times apply to the current leg."
+}

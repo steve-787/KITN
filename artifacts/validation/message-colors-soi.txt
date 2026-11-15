@@ -1,0 +1,2 @@
+[KITN] 2026-11-14T22:50:51.9436661+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+PASS SOI warning: native prediction estimate, red localized display, unavailable-data handling and reset on route selection

@@ -12,7 +12,7 @@ internal static class DockingTests
         Check(retreat.Phase == DockingPhase.Retreating && retreat.DesiredVelocity.X > 0 && retreat.DesiredVelocity.Y == 0,
             "Misaligned lateral approach crosses the target instead of retreating first");
         var align = DockingMath.Approach(new LandingVector(40, 0, 0), 180, 0, 0.02, 35);
-        Check(align.Phase == DockingPhase.Aligning && align.DesiredVelocity.Length == 0, "A reversed spacecraft closes on the target before alignment");
+        Check(align.Phase == DockingPhase.Correcting && align.DesiredVelocity.Length == 0, "A reversed spacecraft closes on the target before alignment");
         var final = DockingMath.Approach(new LandingVector(2, 0.05, 0), 0.5, 0.1, 0.02, 35);
         Check(final.Phase == DockingPhase.Docking && final.DesiredVelocity.X < 0 && final.DesiredVelocity.Length <= 0.08,
             "Final approach exceeds the contact-speed limit");

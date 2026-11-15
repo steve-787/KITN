@@ -1,0 +1,27 @@
+[KITN] 2026-11-15T02:16:34.2324326+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+[KITN] 2026-11-15T02:16:34.5691543+01:00 [INFO] [RENDEZVOUS] event=course_correction attempt=1 time_s=25666,868 arrival_s=54233,799 reason="KSA predicts 12,663 m separation at arrival; the local RCS approach needs at most 2,000 m. The braking maneuver could not be created."
+[KITN] 2026-11-15T02:16:34.5868246+01:00 [INFO] [RENDEZVOUS] event=route_planned correction=True departure_s=47092,066 arrival_s=54233,799 dv_mps=44,440 revolutions=1
+[KITN] 2026-11-15T02:16:34.5926060+01:00 [INFO] [RENDEZVOUS] event=ignition type=correction time_s=47091,635 throttle=0,100
+[KITN] 2026-11-15T02:16:34.5979344+01:00 [INFO] [RENDEZVOUS] event=burn_complete type=correction time_s=47092,508
+[KITN] 2026-11-15T02:16:34.5985972+01:00 [INFO] [RENDEZVOUS] event=braking_planned time_s=54233,799 throttle=0,461
+[KITN] 2026-11-15T02:16:34.5991112+01:00 [INFO] [RENDEZVOUS] event=ignition type=braking time_s=54231,799 throttle=0,461
+[KITN] 2026-11-15T02:16:34.5995014+01:00 [INFO] [RENDEZVOUS] event=burn_complete type=braking time_s=54235,809
+[KITN] 2026-11-15T02:16:34.7032092+01:00 [INFO] [RENDEZVOUS] event=stopped
+[KITN] 2026-11-15T02:16:34.7037591+01:00 [INFO] [RENDEZVOUS] event=complete distance_m=100,02 relative_speed_mps=0,014
+PASS full native continuation: 12663 m actual miss -> course correction -> automatic braking -> RCS stand-off 100,02 m at 0,014 m/s
+PASS native connected fuel/oxidizer tanks with empty direct bindings and burn cache: mixture delta-v, landing fuel, missing/disabled reactants and stage flow rules; full rendezvous search
+PASS native finite rendezvous (7000000, 0,5, 0): dv=83,41 m/s, miss=2,386 m, after braking=500,02 m / 0,001 m/s
+PASS native finite rendezvous (7200000, 1, 0): dv=106,57 m/s, miss=1,462 m, after braking=499,92 m / 0,002 m/s
+PASS native finite rendezvous (7400000, 0,8, 0,1): dv=794,35 m/s, miss=0,052 m, after braking=491,13 m / 0,022 m/s
+PASS native finite rendezvous (7000000, 0,0004, 0): dv=4,81 m/s, miss=0,000 m, after braking=500,00 m / 0,000 m/s
+[KITN] 2026-11-15T02:16:35.3090863+01:00 [INFO] [RENDEZVOUS] event=stopped
+PASS native rendezvous node order, ownership, cancellation and saved control restoration
+[KITN] 2026-11-15T02:16:35.3133481+01:00 [INFO] [RENDEZVOUS] event=coast_warp type=departure stop_s=820,000
+[KITN] 2026-11-15T02:16:35.3290475+01:00 [INFO] [RENDEZVOUS] event=ignition type=departure time_s=1000,000 throttle=0,100
+[KITN] 2026-11-15T02:16:35.3297208+01:00 [INFO] [RENDEZVOUS] event=burn_complete type=departure time_s=1010,000
+[KITN] 2026-11-15T02:16:35.3303645+01:00 [INFO] [RENDEZVOUS] event=braking_planned time_s=40358,864 throttle=0,100
+[KITN] 2026-11-15T02:16:35.3312071+01:00 [INFO] [RENDEZVOUS] event=coast_warp type=braking stop_s=40177,864
+[KITN] 2026-11-15T02:16:35.3316540+01:00 [INFO] [RENDEZVOUS] event=stopped
+PASS rendezvous coast/warp, RCS restoration, alignment and ignition guards, actual arrival replacement and stale native target handling
+[KITN] 2026-11-15T02:16:36.1578435+01:00 [WARN] [RENDEZVOUS] event=failed reason=rendezvous.insufficient_dv detail="The cheapest safe route found needs about 1,200 m/s; the active engines have 900 m/s available. Approximately 300 m/s Δv is missing for departure and braking."
+PASS separate Rendezvous/Docking topbar pages, primary start/disabled actions and global stop in English/German at both widths

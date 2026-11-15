@@ -1,0 +1,16 @@
+{
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "backup": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\backups\\detached-windows-20261115-160318",
+  "hashesMatch": true,
+  "sha256": "DAC4F2B80433CFE9AD2239F04035E4C7113C61FFA4F9D4C4B05C54B8925392FF",
+  "checkedAt": "2026-11-15T16:03:18.8746429+01:00",
+  "validation": [
+    "Release build: zero warnings/errors",
+    "Native detached viewport switching and persistence",
+    "Negative monitor coordinates and monitor removal",
+    "Fixed-viewport fallback",
+    "Custom header dragging and minimized icon/activity layouts",
+    "English/German header and widget regressions",
+    "Layout, localization and preference diagnostics"
+  ]
+}

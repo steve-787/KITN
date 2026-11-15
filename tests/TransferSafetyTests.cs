@@ -62,4 +62,34 @@ internal static class TransferSafetyTests
         }
         Check(!TransferSafety.Capture(mu, new LandingVector(radius, 0, 0), new LandingVector(-900, 0, 0), out _), "Radial impact is mistaken for a capture orbit");
     }
+
+    public static void SoiCorrection()
+    {
+        const double mu = 3.986004418e14, startRadius = 7e6, targetRadius = 42.164e6;
+        double axis = (startRadius + targetRadius) / 2;
+        double arrival = Math.PI * Math.Sqrt(axis * axis * axis / mu);
+        var position = new LandingVector(startRadius, 0, 0);
+        double requiredSpeed = Math.Sqrt(mu * (2 / startRadius - 1 / axis));
+        var actualVelocity = new LandingVector(0, requiredSpeed - 100, 0);
+        var target = new LandingVector(-targetRadius, 0, 0);
+        var actual = new TransferCoast(mu, position, actualVelocity);
+        Check(actual.State(arrival, out var missed, out _), "Test coast cannot propagate to arrival");
+        double correction = TransferSafety.SoiCorrectionDeltaV(mu, position, actualVelocity, missed, target, 0, arrival);
+        Check(Math.Abs(correction - 100) < 1e-3, "A known 100 m/s underburn is not recovered by the correction estimate");
+        double edgeCorrection = TransferSafety.SoiCorrectionDeltaV(mu, position, actualVelocity, missed, target, 100000, arrival);
+        Check(edgeCorrection > 0 && edgeCorrection < correction, "Reaching the near SOI edge costs more than reaching the target center");
+        Check(TransferSafety.SoiCorrectionDeltaV(mu, position, actualVelocity, target, target, 100000, arrival) == 0,
+            "An already reached SOI is assigned a missing delta-v");
+        var angledTarget = new LandingVector(0, targetRadius, 0);
+        var nominal = TransferLambert.Solve(mu, position, angledTarget, arrival, TransferGeometry.Prograde, 0, new LandingVector(0, 0, 1)).Vi;
+        var tilted = nominal + new LandingVector(0, 0, 80);
+        var tiltedCoast = new TransferCoast(mu, position, tilted);
+        Check(tiltedCoast.State(arrival, out var tiltedArrival, out _), "Tilted coast does not propagate");
+        double planeCorrection = TransferSafety.SoiCorrectionDeltaV(mu, position, tilted, tiltedArrival, angledTarget, 0, arrival);
+        Check(Math.Abs(planeCorrection - 80) < 1e-3, "A lateral miss is incorrectly treated as a simple fuel/speed shortage");
+        Check(double.IsNaN(TransferSafety.SoiCorrectionDeltaV(double.NaN, position, actualVelocity, missed, target, 0, arrival))
+            && double.IsNaN(TransferSafety.SoiCorrectionDeltaV(mu, position, actualVelocity, missed, target, 0, -1))
+            && double.IsNaN(TransferSafety.SoiCorrectionDeltaV(mu, position, actualVelocity, missed, target, double.NaN, arrival)),
+            "Invalid prediction data invents a numeric correction");
+    }
 }

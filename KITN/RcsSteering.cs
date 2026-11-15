@@ -8,6 +8,18 @@ namespace KITN
         public const double DeadbandDeg = 0.6;
         public const double CorrectionAngleDeg = 5;
 
+        public static bool EnvironmentPermitted(bool allowed, string bodyId, string templateId,
+            double radius, double atmosphereRadius)
+        {
+            if (!allowed) return false;
+            bool earth = string.Equals(bodyId, "Earth", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(templateId, "Earth", StringComparison.OrdinalIgnoreCase);
+            // Use the body's actual atmosphere boundary, even outside the physics bubble.
+            // Unknown Earth geometry must not enable jets inside the restricted region.
+            return !earth || double.IsFinite(radius) && double.IsFinite(atmosphereRadius)
+                && atmosphereRadius > 0 && radius > atmosphereRadius;
+        }
+
         public static bool Permitted(bool allowed, bool transfer, double errorDeg)
             => allowed && double.IsFinite(errorDeg) && errorDeg >= 0
                 && (transfer || errorDeg <= CorrectionAngleDeg);

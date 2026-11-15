@@ -29,6 +29,15 @@ namespace KITN
             return Math.Min(4.0, baseRate * (1.0 + 2.0 * ramp));
         }
 
+        public static double InitiateTurn(double profilePitchDeg, double altitudeM, double startM)
+        {
+            if (!double.IsFinite(altitudeM) || !double.IsFinite(startM)) return profilePitchDeg;
+            // A late, convex altitude curve otherwise gives almost no initial lateral impulse.
+            // The atmospheric AoA gate still limits this small kick relative to the flight path.
+            double kick = 3.0 * Math.Clamp((altitudeM - startM) / 1000.0, 0.0, 1.0);
+            return Math.Min(profilePitchDeg, 90.0 - kick);
+        }
+
         public static double LimitPitchForApoapsis(double profilePitchDeg, double altitudeM,
             double apoapsisM, double targetApoapsisM)
         {

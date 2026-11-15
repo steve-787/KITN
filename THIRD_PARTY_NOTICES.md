@@ -10,6 +10,8 @@ native ImGui rendering. Lucide's ISC/Feather MIT license is included in
 `KITN/TransferLambert.cs` adapts the Gooding Lambert solver from
 `MechJebLib/Lambert/Gooding.cs`. The ejection calculation in
 `KITN/TransferMath.cs` adapts `MechJebLib/Functions/SingleImpulseHyperbolicBurn.cs`.
+`KITN/RendezvousMath.cs` adapts the two-impulse objective, moving-target velocity
+match and synodic search scale from `MechJebLib/Maneuvers/TwoImpulseTransfer.cs`.
 Source: https://github.com/MuMech/MechJeb2
 
 Copyright Lamont Granquist, Sebastien Gaggini and the MechJeb contributors.
@@ -21,6 +23,10 @@ No GPL-only MechJeb application code is included.
 Changes: game-independent vector types, finite-input validation, bounded
 iterations, explicit handling of collinear Lambert endpoints, golden-section
 ejection refinement, surface-clearance checks and transfer-grid integration.
+Rendezvous uses a bounded multi-revolution search and local refinement in place
+of ALGLIB, retains the target's actual inclination, adds a safe stand-off, and
+corrects KSA's finite departure burn. Maneuver execution and close RCS guidance
+are implemented for KSA.
 
 ## MIT License
 

@@ -12,6 +12,9 @@ namespace KITN
     {
         public readonly List<Celestial> Bodies = new List<Celestial>();
         public Celestial Target { get; private set; }
+        public Celestial RouteTarget => IsExecuting && _captureTarget != null ? _captureTarget : Target;
+        public Celestial TransitBody => ResolveRouteTarget(_vehicle?.Parent ?? _parent, Target);
+        public bool HasNestedArrival => Target != null && TransitBody != null && !ReferenceEquals(TransitBody, Target);
         public string OriginName { get; private set; } = "—";
         public string UnavailableReason { get; private set; } = "transfer.require_orbit";
         public string Message { get; private set; }
@@ -48,6 +51,17 @@ namespace KITN
         private int _progress;
         private double _lastRefresh = double.NegativeInfinity;
 
+        internal static Celestial ResolveRouteTarget(IParentBody origin, Celestial destination)
+        {
+            if (origin == null || destination == null || ReferenceEquals(origin, destination)) return null;
+            // Find the destination ancestor orbiting the transfer's central body.
+            Celestial candidate = destination;
+            for (int depth = 0; candidate != null && depth < 64; depth++, candidate = candidate.Parent as Celestial)
+                if (ReferenceEquals(candidate.Parent, origin)
+                    || origin is Celestial source && ReferenceEquals(source.Parent, candidate.Parent)) return candidate;
+            return null;
+        }
+
         public void SelectTarget(Celestial target)
         {
             if (ReferenceEquals(Target, target)) return;
@@ -78,7 +92,7 @@ namespace KITN
             if (_system != null)
                 foreach (var body in _system.All.OfType<Celestial>())
                     if (!body.IsStar()) Bodies.Add(body);
-            Bodies.Sort((a, b) => StringComparer.OrdinalIgnoreCase.Compare(a.Id, b.Id));
+            SortBodiesByOrbit(Bodies);
             if (Target != null && !Bodies.Contains(Target)) SelectTarget(null);
             if (Target == null)
             {
@@ -88,7 +102,7 @@ namespace KITN
             }
             OriginName = _parent?.Id ?? "—";
             UnavailableReason = ValidateRoute(vehicle);
-            if (CanSearch && _snapshot == null)
+            if (CanSearch && _snapshot == null && !IsExecuting)
             {
                 _snapshot = Snapshot(vehicle);
                 SetDefaults(_snapshot);
@@ -103,6 +117,43 @@ namespace KITN
             if (_node != null && !HasNode) _node = null;
         }
 
+        private static void SortBodiesByOrbit(List<Celestial> bodies)
+        {
+            var included = new HashSet<Celestial>(bodies);
+            var roots = new List<Celestial>();
+            var children = new Dictionary<Celestial, List<Celestial>>();
+            foreach (var body in bodies)
+            {
+                if (body.Parent is Celestial parent && included.Contains(parent))
+                {
+                    if (!children.TryGetValue(parent, out var moons)) children[parent] = moons = new List<Celestial>();
+                    moons.Add(body);
+                }
+                else roots.Add(body);
+            }
+            double Distance(Celestial body)
+            {
+                // Mean orbital distance keeps the menu stable as bodies move along their orbits.
+                double distance = body.Orbit == null ? double.NaN : body.Orbit.Periapsis / 2 + body.Orbit.Apoapsis / 2;
+                return double.IsFinite(distance) && distance > 0 ? distance : double.PositiveInfinity;
+            }
+            int Compare(Celestial a, Celestial b)
+            {
+                int order = Distance(a).CompareTo(Distance(b));
+                return order != 0 ? order : StringComparer.OrdinalIgnoreCase.Compare(a.Id, b.Id);
+            }
+            roots.Sort(Compare);
+            foreach (var moons in children.Values) moons.Sort(Compare);
+            bodies.Clear();
+            void Append(Celestial body)
+            {
+                bodies.Add(body);
+                if (children.TryGetValue(body, out var moons))
+                    foreach (var moon in moons) Append(moon);
+            }
+            foreach (var body in roots) Append(body);
+        }
+
         private string ValidateRoute(Vehicle vehicle)
         {
             if (vehicle?.Orbit == null || !vehicle.Orbit.IsBound() || !vehicle.IsControllable) return "transfer.require_orbit";
@@ -110,14 +161,15 @@ namespace KITN
             if (vehicle.Orbit.Apoapsis >= vehicle.Parent.SphereOfInfluence) return "transfer.soi_orbit";
             if (Target == null) return "transfer.require_target";
             if (ReferenceEquals(Target, vehicle.Parent)) return "transfer.parent_target";
-            if (ReferenceEquals(Target.Parent, vehicle.Parent)) return null;
-            if (vehicle.Parent is Celestial origin && ReferenceEquals(origin.Parent, Target.Parent)) return null;
+            if (ResolveRouteTarget(vehicle.Parent, Target) != null) return null;
             return "transfer.route_hierarchy";
         }
 
         private TransferRequest Snapshot(Vehicle vehicle)
         {
-            bool ejection = !ReferenceEquals(Target.Parent, vehicle.Parent);
+            Celestial destination = RouteTarget;
+            Celestial outer = ResolveRouteTarget(vehicle.Parent, destination);
+            bool ejection = !ReferenceEquals(outer.Parent, vehicle.Parent);
             IParentBody central = ejection ? ((Celestial)vehicle.Parent).Parent : vehicle.Parent;
             _parkingToCentral = doubleQuat.Concatenate(vehicle.Parent.GetCci2Cce(), central.GetCce2Cci());
             var state = vehicle.Orbit.GetStateVectorsAt(new UniverseTime(Now));
@@ -126,7 +178,7 @@ namespace KITN
                 Now = Now, CentralMu = central.Mu,
                 Parking = new TransferOrbit(vehicle.Orbit.Mu, Now,
                     Vector(state.PositionCci.Transform(_parkingToCentral)), Vector(state.VelocityCci.Transform(_parkingToCentral))),
-                Target = SnapshotOrbit(Target.Orbit), TargetMu = ((IParentBody)Target).Mu, TargetRadius = Target.MeanRadius, TargetSoi = Target.SphereOfInfluence,
+                Target = SnapshotOrbitInFrame(outer.Orbit, central), TargetMu = ((IParentBody)destination).Mu, TargetRadius = destination.MeanRadius, TargetSoi = destination.SphereOfInfluence,
                 DepartureSafetyRadius = Math.Max(vehicle.Parent.GetNearSurfaceRadius(), vehicle.Parent.GetAtmosphereRadius()),
                 DepartureSoi = ejection ? vehicle.Parent.SphereOfInfluence : 0,
                 CentralSoi = central.SphereOfInfluence,
@@ -135,13 +187,26 @@ namespace KITN
                 Oberth = OberthMode,
                 PeriapsisAltitude = Math.Max(0, PeriapsisKm) * 1000, IncludeCapture = IncludeCapture, UseBestEffortFallback = true
             };
-            if (ejection) request.Source = SnapshotOrbit(((Celestial)vehicle.Parent).Orbit);
-            if (GravityAssists && _system != null)
+            if (!ReferenceEquals(outer, destination))
+            {
+                var path = new List<TransferBodySnapshot>();
+                for (Celestial body = destination; body != null; body = body.Parent as Celestial)
+                {
+                    path.Add(new TransferBodySnapshot(body.Id, SnapshotOrbitInFrame(body.Orbit, central), ((IParentBody)body).Mu,
+                        body.MeanRadius, body.SphereOfInfluence, ArrivalSafetyRadius(body)));
+                    if (ReferenceEquals(body, outer)) break;
+                }
+                path.Reverse(); request.ArrivalPath = path.ToArray();
+                // A distant-moon result must contain the actual final encounter.
+                request.UseBestEffortFallback = false;
+            }
+            if (ejection) request.Source = SnapshotOrbitInFrame(((Celestial)vehicle.Parent).Orbit, central);
+            if (GravityAssists && !request.NestedArrival && _system != null)
             {
                 var assists = new List<TransferBodySnapshot>();
                 foreach (var body in _system.All.OfType<Celestial>())
                 {
-                    if (ReferenceEquals(body, Target) || ReferenceEquals(body, vehicle.Parent)
+                    if (ReferenceEquals(body, destination) || ReferenceEquals(body, vehicle.Parent)
                         || !ReferenceEquals(body.Parent, central) || body.Orbit == null || !body.Orbit.IsBound()) continue;
                     double safety = ArrivalSafetyRadius(body);
                     if (!(body.SphereOfInfluence > safety)) continue;
@@ -154,10 +219,14 @@ namespace KITN
             return request;
         }
 
-        private TransferOrbit SnapshotOrbit(Orbit orbit)
+        private TransferOrbit SnapshotOrbit(Orbit orbit) => SnapshotOrbitInFrame(orbit, null);
+
+        private TransferOrbit SnapshotOrbitInFrame(Orbit orbit, IParentBody axes)
         {
             var state = orbit.GetStateVectorsAt(new UniverseTime(Now));
-            return new TransferOrbit(orbit.Mu, Now, Vector(state.PositionCci), Vector(state.VelocityCci));
+            doubleQuat rotation = axes == null ? doubleQuat.Identity
+                : doubleQuat.Concatenate(orbit.Parent.GetCci2Cce(), axes.GetCce2Cci());
+            return new TransferOrbit(orbit.Mu, Now, Vector(state.PositionCci.Transform(rotation)), Vector(state.VelocityCci.Transform(rotation)));
         }
 
         private void SetDefaults(TransferRequest request)
@@ -169,8 +238,8 @@ namespace KITN
             EarliestDelay = request.Ejection ? Math.Max(300, request.Parking.Period) : 300;
             SearchWindow = TransferMath.DefaultDepartureWindow(request);
             MinimumDuration = Math.Max(60, hohmann * 0.25); MaximumDuration = hohmann * 2;
-            double minimumPeriapsis = ArrivalSafetyRadius(Target) - Target.MeanRadius + 10000;
-            PeriapsisKm = (float)Math.Max(100, minimumPeriapsis / 1000);
+            Celestial destination = RouteTarget;
+            PeriapsisKm = (float)(DefaultArrivalAltitude(destination) / 1000);
         }
 
         private bool OrbitStillMatches(Vehicle vehicle, TransferRequest request)
@@ -301,8 +370,9 @@ namespace KITN
             burn.PlannedThrottle = 1;
             if (HasNode) { StopExecution(); vehicle.FlightComputer.RemoveBurn(_node); }
             vehicle.FlightComputer.AddBurn(burn); _node = burn;
-            Universe.SetTarget(vehicle, Target, null);
-            _captureVehicle = vehicle; _captureTarget = Target; _captureDeparture = burn;
+            Celestial destination = RouteTarget;
+            Universe.SetTarget(vehicle, destination, null);
+            _captureVehicle = vehicle; _captureTarget = destination; _captureDeparture = burn;
             _departureFinished = false; _captureNode = null; _captureSuppressed = false;
             QueueValidation(vehicle, burn, solution, execute);
             Diag.Info("TRANSFER", $"event=node_created target=\"{Target.Id}\" departure_s={solution.Departure:F3} dv_mps={solution.DepartureDv:F3} execute={execute}");

@@ -4,6 +4,7 @@ using System.Reflection;
 using StarMap.API;
 using StarMap.API.Services;
 using KSA;
+using Brutal.Numerics;
 
 namespace KITN
 {
@@ -23,6 +24,7 @@ namespace KITN
         private string _pendingAction;
         private readonly FlightDisplay _flightDisplay = new FlightDisplay();
         private readonly AutopilotWindow _window = new AutopilotWindow();
+        private MinimizedWindow _minimizedWindow;
         private readonly MissionClock _missionClock = new MissionClock();
         private readonly MissionTimeWindow _missionTimeWindow = new MissionTimeWindow();
         private MissionAltitudeDisplay _missionAltitude;
@@ -30,6 +32,7 @@ namespace KITN
         private readonly ManeuverPlanner _planner = new ManeuverPlanner();
         private readonly RcsController _rcs = new RcsController();
         private readonly RendezvousController _rendezvous = new RendezvousController();
+        private readonly DockingGuidanceOverlay _dockingOverlay = new DockingGuidanceOverlay();
         private UiLayoutStore _uiLayout;
         private bool _missionTimeOpen;
         private IParentBody _countdownParent;
@@ -52,6 +55,8 @@ namespace KITN
             else Diag.Error("UI_LAYOUT", _uiLayout.LastError, "Loading window positions failed; using the default layout and preserving the file");
             _window.Layout = new PersistentWindowLayout(_uiLayout, "autopilot");
             _missionTimeWindow.Layout = new PersistentWindowLayout(_uiLayout, "mission_time");
+            _minimizedWindow = new MinimizedWindow(_uiLayout);
+            _minimizedWindow.Peer = _missionTimeWindow.Layout;
             _window.Settings = _missionTimeWindow.Settings = _uiLayout;
             _windowOpen = _uiLayout.MainWindowOpen;
             _missionTimeOpen = _uiLayout.MissionTimeOpen;
@@ -72,6 +77,8 @@ namespace KITN
             _window.Presets = presets;
             _planner.GravityAssists = _uiLayout.GravityAssists;
             _landing.Settings = _uiLayout.Landing.Copy(); _landing.AutoWarp = _landing.Settings.AutoWarp;
+            _rendezvous.RendezvousOptions = _uiLayout.Rendezvous.Copy();
+            _rendezvous.DockingOptions = _uiLayout.Docking.Copy();
             if (presets.Load()) Diag.Info("PRESET", $"event=loaded count={presets.Presets.Count}");
             else Diag.Error("PRESET", presets.LastError, "Loading saved flight plans failed; the file is preserved");
 
@@ -121,11 +128,12 @@ namespace KITN
                 Diag.Info("CONTROL_HOOK", "event=first_guidance_callback execution=before_physics_snapshot");
             Vehicle vehicle = Program.ControlledVehicle;
             ObserveVehicle(vehicle);
-            try { _rendezvous.Refresh(vehicle, _uiLayout.AllowRcs); }
+            bool allowRcs = RcsController.Allowed(vehicle, _uiLayout.AllowRcs);
+            try { _rendezvous.Refresh(vehicle, allowRcs); }
             catch (Exception ex)
             {
                 Diag.EveryError("rendezvous_refresh", 5, "RENDEZVOUS", ex, "Reading docking targets failed");
-                _rendezvous.Stop();
+                _rendezvous.StopWithFailure(ex.Message);
             }
             try { _landing.Refresh(vehicle); }
             catch (Exception ex)
@@ -143,7 +151,7 @@ namespace KITN
                 if (action?.StartsWith("transfer_", StringComparison.Ordinal) == true)
                     _planner.HandleAction(action, vehicle, _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _rendezvous.IsActive);
                 if (action?.StartsWith("rendezvous_", StringComparison.Ordinal) == true)
-                    _rendezvous.HandleAction(action, vehicle, _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _planner.IsExecuting, _uiLayout.AllowRcs);
+                    _rendezvous.HandleAction(action, vehicle, _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _planner.IsExecuting, allowRcs);
             }
             catch (Exception ex) { Diag.EveryError("transfer_refresh", 5, "TRANSFER", ex, "Reading transfer planner state failed"); }
             bool blockedCountdown = action == "cancel_countdown" || action == "abort" || action == "reset";
@@ -215,8 +223,8 @@ namespace KITN
                     _landing.Update(vehicle, simulationTime, dtPlayer);
                     _guidance.LandingDebug = _landing.Telemetry(_missionClock);
                     _guidance.Update(vehicle, _playerTime + dtPlayer, dtPlayer);
-                    _rendezvous.Update(vehicle, simulationTime, _uiLayout.AllowRcs);
-                    _planner.UpdateExecution(vehicle, simulationTime, _uiLayout.AllowRcs,
+                    _rendezvous.Update(vehicle, simulationTime, allowRcs);
+                    _planner.UpdateExecution(vehicle, simulationTime, allowRcs,
                         _guidance.IsActive || _landing.IsActive || _missionClock.IsCountingDown || _rendezvous.IsActive);
                 }
                 catch (Exception ex)
@@ -225,7 +233,7 @@ namespace KITN
                         $"Physics guidance failed: state={_guidance.CurrentState} hook_calls={_physicsHookCalls}");
                     if (_landing.IsActive) _landing.Abort(vehicle, "guidance_exception", "landing.failed");
                     if (_guidance.IsActive) _guidance.Abort(vehicle, "guidance_exception");
-                    _rendezvous.Stop();
+                    _rendezvous.StopWithFailure(ex.Message);
                     _planner.HandleAction("transfer_stop", vehicle, false);
                 }
                 finally { UpdateRcs(vehicle); }
@@ -266,14 +274,18 @@ namespace KITN
             {
                 _window.OnVisibilityChanged(false);
                 _window.Layout.Enabled = _missionTimeWindow.Layout.Enabled = false;
+                _minimizedWindow.Enabled = false;
                 _missionAltitude?.Release();
                 SaveUiLayout();
                 return;
             }
             _missionTimeOpen = _uiLayout.MissionTimeOpen;
             bool windowWasOpen = _windowOpen, timerWasOpen = _missionTimeOpen;
+            try { _dockingOverlay.Draw(_rendezvous); }
+            catch (Exception ex) { Diag.EveryError("docking_overlay", 5, "UI", ex, "Drawing docking guidance failed"); }
             bool timerDrawn = false;
             _window.Layout.Enabled = _windowOpen;
+            _minimizedWindow.Enabled = !_windowOpen;
             _missionTimeWindow.Layout.Enabled = _missionTimeOpen;
             try
             {
@@ -282,8 +294,15 @@ namespace KITN
                     string action = _window.Draw(ref _windowOpen, _profile, _guidance, _flightDisplay,
                         _missionClock, _physicsHook != null, _pendingAction != null, _landing);
                     if (_pendingAction == null && action != null) _pendingAction = action;
+                    if (!_windowOpen) _minimizedWindow.PlaceAt(_window.Layout.Current);
                 }
-                else if (LauncherShortcut.Draw()) _windowOpen = true;
+                else if (_minimizedWindow.Draw(ModActivity.Read(_guidance, _flightDisplay,
+                    _missionClock, _landing, _rendezvous, _planner, _pendingAction != null, _uiLayout.MissionTimeOpen)))
+                {
+                    _windowOpen = true;
+                    UiWindowBounds bounds = _minimizedWindow.Layout.Current;
+                    if (bounds != null) _window.Layout.PlaceAt(new float2(bounds.X, bounds.Y));
+                }
                 _missionTimeOpen = _uiLayout.MissionTimeOpen;
                 if (_missionTimeOpen)
                 {
@@ -305,8 +324,10 @@ namespace KITN
                 _uiLayout.SetMissionTimeOpen(_missionTimeOpen, Environment.TickCount64);
                 if (!_missionTimeOpen || !timerDrawn) _missionAltitude?.Release();
                 _window.Layout.Enabled = _windowOpen;
+                _minimizedWindow.Enabled = !_windowOpen;
                 _missionTimeWindow.Layout.Enabled = _missionTimeOpen && timerDrawn;
-                PersistentWindowLayout.DrawGuides(_window.Layout, _missionTimeWindow.Layout);
+                _missionTimeWindow.Layout.Peer = _windowOpen ? _window.Layout : _minimizedWindow.Layout;
+                PersistentWindowLayout.DrawGuides(_windowOpen ? _window.Layout : _minimizedWindow.Layout, _missionTimeWindow.Layout);
                 SaveUiLayout((windowWasOpen && !_windowOpen) || (timerWasOpen && !_missionTimeOpen));
             }
         }
@@ -347,7 +368,8 @@ namespace KITN
             try
             {
                 _rcs.Update(vehicle, _guidance.IsActive || _landing.IsActive || _planner.IsExecuting || _rendezvous.IsActive,
-                    (_uiLayout?.AllowRcs ?? true) && !_planner.IsWarping && !_planner.IsCoasting, _planner.IsExecuting, _rendezvous.IsActive);
+                    (_uiLayout?.AllowRcs ?? true) && !_planner.IsWarping && !_planner.IsCoasting && !_rendezvous.IsRendezvousCoasting,
+                    _planner.IsExecuting || _rendezvous.IsExecutingManeuver, _rendezvous.IsActive);
             }
             catch (Exception ex)
             {
@@ -355,7 +377,7 @@ namespace KITN
                 if (_guidance.IsActive) _guidance.Abort(vehicle, "rcs_control_exception");
                 if (_landing.IsActive) _landing.Abort(vehicle, "rcs_control_exception", "landing.failed");
                 if (_planner.IsExecuting) _planner.HandleAction("transfer_stop", vehicle, false);
-                _rendezvous.Stop();
+                _rendezvous.StopWithFailure(ex.Message);
                 _rcs.Restore();
             }
         }

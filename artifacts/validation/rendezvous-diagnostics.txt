@@ -1,0 +1,12 @@
+PASS Docking rejects unsafe approaches and uses stand-off, alignment and gentle final contact
+  (7000000, 0,5, 0): delta-v=83,41 m/s, arrival=55678,6 s, revolutions=-4
+  (7200000, 1, 0): delta-v=106,57 m/s, arrival=30012,1 s, revolutions=-2
+  (7400000, 0,8, 0,2): delta-v=1509,47 m/s, arrival=18247,7 s, revolutions=-2
+  (7000000, 1,5, 3,141592653589793): delta-v=15092,61 m/s, arrival=25533,3 s, revolutions=4
+  (7000000, 0, 0): delta-v=1,33 m/s, arrival=30661,3 s, revolutions=0
+PASS Rendezvous orbital transfers reach phased, inclined and retrograde moving targets
+PASS Rendezvous rejects insufficient fuel, unsafe coasts, invalid states and cancelled searches
+PASS Rendezvous RCS pulses converge on safe stand-off under orbital relative gravity
+PASS RCS pulse docking reaches stationary and rotating ports from distant and lateral approaches
+PASS Transfer ignition rejects warp, angular inertia, misalignment and missed departure
+PASS English and German catalogs preserve every formatted parameter

@@ -84,6 +84,20 @@ namespace KITN
         public bool GravityAssists;
         public bool Oberth;
         public TransferBodySnapshot[] AssistBodies = Array.Empty<TransferBodySnapshot>();
+        // Outer planet through final moon, each local orbit expressed in the central inertial axes.
+        public TransferBodySnapshot[] ArrivalPath = Array.Empty<TransferBodySnapshot>();
+        public bool NestedArrival => ArrivalPath.Length > 1;
+        public bool TargetState(double time, out LandingVector r, out LandingVector v)
+        {
+            if (!NestedArrival) return Target.State(time, out r, out v);
+            r = v = default;
+            foreach (var body in ArrivalPath)
+            {
+                if (!body.Orbit.State(time, out var localR, out var localV)) return false;
+                r += localR; v += localV;
+            }
+            return r.IsFinite && v.IsFinite;
+        }
         public Func<double, LandingVector, CancellationToken, TransferBurnState> PredictBurn;
         public bool IncludeCapture, UseBestEffortFallback;
         public Func<TransferSolution, CancellationToken, TransferSolution> Refine;
@@ -136,17 +150,22 @@ namespace KITN
         public readonly LandingVector Position, DeltaV, ArrivalExcess;
         public readonly bool Valid, EscapesCentral, BestEffort;
         public readonly TransferFlyby Flyby;
+        public readonly TransferArrival Arrival;
+        public double ArrivalTime => Arrival?.Encounters.Length > 0
+            ? Arrival.Encounters[Arrival.Encounters.Length - 1].PeriapsisTime : Departure + Duration;
+        public double FlightTime => ArrivalTime - Departure;
         public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral = false)
             : this(departure, duration, position, deltaV, arrivalExcess, capture, escapesCentral, false) { }
         public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral, bool bestEffort)
             : this(departure, duration, position, deltaV, arrivalExcess, capture, escapesCentral, bestEffort, null) { }
-        public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral, bool bestEffort, TransferFlyby flyby)
+        public TransferSolution(double departure, double duration, LandingVector position, LandingVector deltaV, LandingVector arrivalExcess, double capture, bool escapesCentral, bool bestEffort, TransferFlyby flyby, TransferArrival arrival = null)
         {
             Departure = departure; Duration = duration; Position = position; DeltaV = deltaV; ArrivalExcess = arrivalExcess;
             DepartureDv = deltaV.Length; CaptureDv = capture;
             EscapesCentral = escapesCentral;
             BestEffort = bestEffort;
             Flyby = flyby;
+            Arrival = arrival;
             Valid = double.IsFinite(departure) && double.IsFinite(duration) && duration > 0 && position.IsFinite
                 && deltaV.IsFinite && arrivalExcess.IsFinite && double.IsFinite(capture) && capture >= 0 && position.Length > 0;
         }
@@ -281,8 +300,7 @@ namespace KITN
                         continue;
                     }
                     var solution = SolveCandidate(request, departure, duration, bestEffort);
-                    grid.Cells[y * request.Width + x] = solution.Valid && request.Refine != null
-                        ? request.Refine(solution, cancellation) : solution;
+                    grid.Cells[y * request.Width + x] = RefineCandidate(request, solution, cancellation);
                 }
                 progress?.Invoke((x + 1) * 100 / request.Width);
             }
@@ -290,7 +308,14 @@ namespace KITN
         }
 
         public static TransferSolution Solve(TransferRequest request, double departure, double duration)
-            => SolveCandidate(request, departure, duration, false);
+        {
+            var seed = SolveCandidate(request, departure, duration, false);
+            return request.NestedArrival ? RefineCandidate(request, seed, CancellationToken.None) : seed;
+        }
+
+        private static TransferSolution RefineCandidate(TransferRequest request, TransferSolution seed, CancellationToken cancellation)
+            => !seed.Valid ? seed : request.NestedArrival ? TransferNestedArrival.Refine(request, seed, cancellation)
+                : request.Refine != null ? request.Refine(seed, cancellation) : seed;
 
         public static TransferSolution Evaluate(TransferRequest request, double departure, double duration, bool bestEffort, CancellationToken cancellation)
         {
@@ -300,7 +325,7 @@ namespace KITN
             if (departure < request.Earliest || departure > request.Latest || duration < request.MinimumDuration || duration > request.MaximumDuration) return default;
             var candidate = SolveCandidate(request, departure, duration, bestEffort);
             if (request.Oberth) return TransferOberth.Refine(request, candidate, departure, duration, cancellation);
-            return candidate.Valid && request.Refine != null ? request.Refine(candidate, cancellation) : candidate;
+            return RefineCandidate(request, candidate, cancellation);
         }
 
         private static TransferSolution SolveCandidate(TransferRequest request, double departure, double duration, bool bestEffort)
@@ -310,7 +335,7 @@ namespace KITN
             {
                 var start = request.Source ?? request.Parking;
                 if (!start.State(departure, out var r1, out var v1)
-                    || !request.Target.State(departure + duration, out var r2, out var v2)) return request.Reject("ephemeris");
+                    || !request.TargetState(departure + duration, out var r2, out var v2)) return request.Reject("ephemeris");
                 var (outgoing, incoming) = TransferLambert.Solve(request.CentralMu, r1, r2, duration,
                     TransferGeometry.Prograde, 0, LandingVector.Cross(r1, v1));
                 var departureDv = outgoing - v1;

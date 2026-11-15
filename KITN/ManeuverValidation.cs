@@ -24,10 +24,11 @@ namespace KITN
         public bool NeedsBetterRoute => _routeProblem != null;
         public bool CanImproveRoute => NeedsBetterRoute && !IsSearching && !IsChecking && !IsExecuting && !HasOtherNodes;
         public float SuggestedPeriapsisKm => _suggestedPeriapsisKm;
+        public double MissingSoiDeltaV { get; private set; } = double.NaN;
 
         private void ClearRouteProblem()
         {
-            _routeProblem = null; _suggestedPeriapsisKm = 0;
+            _routeProblem = null; _suggestedPeriapsisKm = 0; MissingSoiDeltaV = double.NaN;
         }
 
         private void ResetRouteAdjustments()
@@ -36,18 +37,22 @@ namespace KITN
             _minimumTransferApoapsis = 0; _minimumTransferPeriapsis = 0;
         }
 
-        private void OfferBetterRoute(string reason, FlightPlan prediction = null)
+        private void OfferBetterRoute(string reason, FlightPlan prediction = null, TransferSolution solution = default)
         {
+            Celestial destination = RouteTarget;
             _routeProblem = reason; Message = reason; _suggestedPeriapsisKm = 0;
-            IParentBody central = ReferenceEquals(Target?.Parent, _vehicle?.Parent) ? _vehicle?.Parent : (_vehicle?.Parent as Celestial)?.Parent;
-            if (prediction != null && Target != null && ReferenceEquals(Target.Parent, central))
+            MissingSoiDeltaV = reason == "transfer.no_encounter" ? EstimateSoiCorrection(prediction, solution, destination) : double.NaN;
+            if (reason == "transfer.arrival_soi" && destination != null)
+                _suggestedPeriapsisKm = (float)(DefaultArrivalAltitude(destination) / 1000);
+            IParentBody central = ReferenceEquals(destination?.Parent, _vehicle?.Parent) ? _vehicle?.Parent : (_vehicle?.Parent as Celestial)?.Parent;
+            if (prediction != null && destination != null && ReferenceEquals(destination.Parent, central))
             {
                 foreach (var patch in prediction.Patches)
                 {
                     if (!ReferenceEquals(patch.PrimaryBody, central) || patch.BurnTrajectory.HasValue) continue;
                     if (reason == "transfer.returning" || reason == "transfer.no_encounter")
                     {
-                        double reach = Target.Orbit.Periapsis - Target.SphereOfInfluence;
+                        double reach = destination.Orbit.Periapsis - destination.SphereOfInfluence;
                         if (patch.Orbit.IsBound() && patch.Orbit.Apoapsis < reach)
                             _minimumTransferApoapsis = Math.Max(_minimumTransferApoapsis, reach + (reach - patch.Orbit.Apoapsis));
                         double safeRadius = Math.Max(central.GetNearSurfaceRadius(), central.GetAtmosphereRadius());
@@ -59,15 +64,15 @@ namespace KITN
                     break;
                 }
             }
-            if (Target == null || (reason != "transfer.arrival_surface" && reason != "transfer.arrival_atmosphere"
+            if (destination == null || (reason != "transfer.arrival_surface" && reason != "transfer.arrival_atmosphere"
                 && reason != "transfer.invalid_periapsis")) return;
             double actualAltitude = double.NaN;
             if (prediction != null)
                 foreach (var patch in prediction.Patches)
-                    if (ReferenceEquals(patch.PrimaryBody, Target))
-                    { actualAltitude = patch.Orbit.Periapsis - Target.MeanRadius; break; }
+                    if (ReferenceEquals(patch.PrimaryBody, destination))
+                    { actualAltitude = patch.Orbit.Periapsis - destination.MeanRadius; break; }
             _suggestedPeriapsisKm = (float)(TransferSafety.ImprovedArrivalAltitude(PeriapsisKm * 1000.0,
-                Target.MeanRadius, Target.MaxTerrainRadius, ((IParentBody)Target).GetAtmosphereRadius(), actualAltitude) / 1000.0);
+                destination.MeanRadius, destination.MaxTerrainRadius, ((IParentBody)destination).GetAtmosphereRadius(), actualAltitude) / 1000.0);
         }
 
         private void ImproveRoute(Vehicle vehicle)
@@ -96,7 +101,7 @@ namespace KITN
             string unavailable = ValidateRoute(vehicle);
             if (unavailable != null) { Message = unavailable; _replanPending = false; return; }
             if (HasOtherNodes) { Message = "transfer.existing_nodes"; _replanPending = false; return; }
-            string arrivalError = ArrivalError(Target, PeriapsisKm * 1000.0);
+            string arrivalError = ArrivalError(RouteTarget, PeriapsisKm * 1000.0);
             if (arrivalError != null) { OfferBetterRoute(arrivalError); _replanPending = false; return; }
             Cancel(); Stale = Grid != null;
             var request = Snapshot(vehicle);
@@ -207,8 +212,43 @@ namespace KITN
             _excludedWindows.Add(new TransferWindowExclusion(solution.Departure, solution.Duration, departureMargin, durationMargin,
                 reason == "transfer.returning" || reason == "transfer.no_encounter"));
             SelectedIndex = -1; _replanPending = false;
-            OfferBetterRoute(reason, prediction);
+            OfferBetterRoute(reason, prediction, solution);
             Diag.Warn("TRANSFER", $"event=route_rejected reason={reason} departure_s={solution.Departure:F3} awaiting=user_route_search");
+        }
+
+        internal static double EstimateSoiCorrection(FlightPlan prediction, TransferSolution solution, Celestial target)
+        {
+            if (prediction == null || prediction.ImpactSearchUnresolved || !solution.Valid || target?.Orbit == null || target.Parent == null) return double.NaN;
+            double arrival = solution.Departure + solution.Duration;
+            bool postBurn = false;
+            double cutoff = double.NegativeInfinity;
+            PatchedConic coast = null;
+            double correctionTime = double.NaN;
+            foreach (var patch in prediction.Patches)
+            {
+                if (patch.BurnTrajectory.HasValue)
+                {
+                    postBurn = true;
+                    cutoff = Math.Max(cutoff, patch.BurnTrajectory.Value.Cutoff.Seconds());
+                    continue;
+                }
+                postBurn |= patch.StartTransition == PatchTransition.Burn;
+                if (!postBurn || !ReferenceEquals(patch.PrimaryBody, target.Parent)) continue;
+                double time = Math.Max(cutoff, patch.StartTime.Seconds());
+                if (!double.IsFinite(time) || time >= arrival - 1 || patch.EndTime.Seconds() < arrival) continue;
+                // The final central-body coast also handles predictions after a gravity assist.
+                coast = patch; correctionTime = time;
+            }
+            if (coast == null) return double.NaN;
+            try
+            {
+                var state = coast.Orbit.GetStateVectorsAt(new UniverseTime(correctionTime));
+                var predictedArrival = coast.Orbit.GetStateVectorsAt(new UniverseTime(arrival));
+                var targetArrival = target.Orbit.GetStateVectorsAt(new UniverseTime(arrival));
+                return TransferSafety.SoiCorrectionDeltaV(coast.Orbit.Mu, Vector(state.PositionCci), Vector(state.VelocityCci),
+                    Vector(predictedArrival.PositionCci), Vector(targetArrival.PositionCci), target.SphereOfInfluence, arrival - correctionTime);
+            }
+            catch (Exception) { return double.NaN; }
         }
 
         private static void LogPrediction(FlightPlan plan, string reason, TransferSolution solution)
@@ -239,6 +279,8 @@ namespace KITN
         internal static string InspectPrediction(FlightPlan plan, IParentBody origin, Celestial target, bool bestEffort)
         {
             if (plan == null || plan.Patches.Count == 0 || target == null || plan.ImpactSearchUnresolved) return "transfer.checking";
+            // Distant-moon routes may never bypass the native final-encounter check.
+            if (!ReferenceEquals(ResolveRouteTarget(origin, target), target)) bestEffort = false;
             bool computedBurn = false;
             foreach (PatchedConic patch in plan.Patches)
                 computedBurn |= patch.StartTransition == PatchTransition.Burn || patch.BurnTrajectory.HasValue;
@@ -250,10 +292,14 @@ namespace KITN
             {
                 if (encounter != null && patch.StartTime >= encounter.StartTime) break;
                 if (patch.EndTransition == PatchTransition.Impact) return "transfer.impact";
-                if (!ReferenceEquals(patch.PrimaryBody, origin) && !ReferenceEquals(patch.PrimaryBody, target.Parent)
+                if (!ReferenceEquals(patch.PrimaryBody, origin)
                     && patch.PrimaryBody is Celestial intermediate
                     && ArrivalError(intermediate, patch.Orbit.Periapsis - intermediate.MeanRadius) != null)
-                    return "transfer.assist_unsafe";
+                {
+                    UniverseTime? intermediatePe = patch.Orbit.GetNextPeriapsisTime(patch.StartTime);
+                    if (intermediatePe.HasValue && !intermediatePe.Value.IsSaturated() && intermediatePe.Value <= patch.EndTime)
+                        return "transfer.assist_unsafe";
+                }
                 if (!ReferenceEquals(patch.PrimaryBody, origin)) continue;
                 UniverseTime coastStart = patch.BurnTrajectory?.Cutoff ?? patch.StartTime;
                 UniverseTime? pe = patch.Orbit.GetNextPeriapsisTime(coastStart + 0.001);

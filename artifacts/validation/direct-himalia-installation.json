@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-11-14T23:31:49.7376548+01:00",
+  "buildDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "8F3E5663A7D1C3DED52A26BB9BED67656EE53BAB480BA27CEA40A16A6AC34DA3",
+  "hashesMatch": true,
+  "validation": [
+    "Release and native test builds: zero warnings/errors",
+    "Direct Earth -> Himalia finite-burn search compared with independent native KSA orbit propagation",
+    "Tilted Jupiter frame and moving Earth, Jupiter and Himalia SOI boundaries",
+    "Native final Himalia circular capture and exactly one controller-generated final capture node",
+    "Jupiter-only predictions do not release a direct Himalia maneuver",
+    "Direct routes to Callisto, Europa, retrograde moon and Phobos",
+    "Small-moon capture defaults stay inside the SOI",
+    "Recorded native lunar transfers, finite Earth -> Mars, Oberth and Earth -> Venus -> Mars",
+    "Transfer, ephemeris, interplanetary, capture and localization diagnostics",
+    "Porkchop axes, localized SOI warnings, header and minimized-widget regression checks",
+    "git diff --check"
+  ],
+  "nativeHimaliaPeriapsisAltitudeMeters": 100014.65,
+  "routeBehavior": "Continuous Earth -> Jupiter SOI -> Himalia flight; no Jupiter parking orbit or capture burn; final capture at Himalia. Displayed arrival time includes the final moon approach.",
+  "limitations": [
+    "Additional optional gravity-assist flybys are not combined with nested arrivals",
+    "Departures from moons to unrelated planetary systems can still require leaving the parent system first"
+  ]
+}

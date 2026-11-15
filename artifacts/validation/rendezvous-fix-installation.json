@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-11-15T01:38:22.1175229+01:00",
+  "builtDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "598CE6335A62B72A8484091A1834B1F13ABD41F9383D52D007FDC60315F43F0C",
+  "verified": true,
+  "rootCause": "KSA cached StagedBurn was empty despite an active fueled engine in the logged dock_1_2 flight",
+  "correction": "Read active liquid engine performance and connected enabled fuel tanks; populate finite native burn phases",
+  "checks": [
+    "Native empty-cache engine/tank fixture produces a complete rendezvous solution without docking ports",
+    "Inactive engines, empty tanks and disabled tank feeds report distinct errors",
+    "Native finite departure, braking, node ownership, cancellation, warp, attitude and ignition checks passed",
+    "Top Rendezvous button and spacecraft selection passed in EN/DE at both widths",
+    "Optional docking section and Autodock action passed",
+    "Missing delta-v error shows required, available and shortfall values in red",
+    "Rendezvous and docking simulations and localization catalog checks passed",
+    "Header and minimized-widget regressions passed",
+    "Release build: 0 warnings, 0 errors"
+  ]
+}

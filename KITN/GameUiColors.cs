@@ -1,4 +1,5 @@
 using Brutal.Numerics;
+using Brutal.ImGuiApi;
 using KSA;
 
 namespace KITN
@@ -9,6 +10,15 @@ namespace KITN
         public static float4 Label => Unpack(ConsoleStyle.TextLabelU32);
         public static float4 Muted => Unpack(ConsoleStyle.TextMutedU32);
         public static float4 Pending => Unpack(ConsoleStyle.PendingU32);
+        public static float4 Error => ConsoleStyle.Danger;
+        public static float4 Message(bool error) => error ? Error : Pending;
+        public static float4 Message(string key) => Message(MessageSeverity.IsError(key));
+        public static void MessageText(string text, bool error = false)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, Message(error));
+            try { ImGui.TextWrapped(text); }
+            finally { ImGui.PopStyleColor(); }
+        }
         public static uint AccentU32 => ConsoleStyle.PendingU32;
         public static float4 Accent => Unpack(AccentU32);
         public static float4 Panel => Unpack(ConsoleStyle.PanelU32);

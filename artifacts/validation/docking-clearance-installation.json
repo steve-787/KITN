@@ -1,0 +1,45 @@
+{
+  "verifiedAt": "2026-11-15T15:24:06.4634627+01:00",
+  "buildDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "94F2CA5CB32832BE10DB487D66F73F0AA71636FFB5A4E39D834280FE4BD1B2A4",
+  "installedMatchesBuild": true,
+  "testedMatchesBuild": true,
+  "buildErrors": 0,
+  "buildWarnings": 0,
+  "checks": [
+    "Outside clearance entry from front, side and rear",
+    "Coarse RCS position precision, pulse reduction and hardware acknowledgement",
+    "Contact speeds below minimum impulse with spaced coast legs",
+    "Native full docking, normal and side-mounted ports at 0.004, 0.04 and 0.1 m/s impulse sizes",
+    "Native rotation coasting and immediate excessive-rate braking",
+    "Native connection, retry reasons and control restoration",
+    "Native overlay projection, bounded geometry, toggle and compact telemetry",
+    "Native RCS Earth atmosphere restriction",
+    "Native rendezvous continuation and orbital planning",
+    "English and German localization catalog",
+    "git diff --check"
+  ],
+  "fineAlignmentSimulation": [
+    {
+      "maximumSettledOffsetM": 0.0044,
+      "previousPulses": 1497,
+      "pulses": 12,
+      "deltaV": 0.004
+    },
+    {
+      "maximumSettledOffsetM": 0.0344,
+      "previousPulses": 10,
+      "pulses": 2,
+      "deltaV": 0.04
+    },
+    {
+      "maximumSettledOffsetM": 0.038,
+      "previousPulses": 4,
+      "pulses": 2,
+      "deltaV": 0.1
+    }
+  ],
+  "liveFlightVerified": false,
+  "liveFuelConsumptionVerified": false
+}

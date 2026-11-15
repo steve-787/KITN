@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-11-15T00:02:05.9860086+01:00",
+  "hashesMatch": true,
+  "sha256": "54D874912EE16ACA9BDE9B6B750FA4A35922EB36A1B9899C527D280F09E0D768",
+  "behavior": "Arrival, departure, transit time and hover readouts use adaptive months/years for long durations, consistent with the Porkchop axes.",
+  "validation": [
+    "Release and native builds: zero warnings/errors",
+    "Native adaptive duration and axis checks in English/German",
+    "Localization checks",
+    "git diff --check",
+    "Installed DLL SHA256 matches Release build"
+  ],
+  "previousLoadedDll": "KITN.dll.previous-20261115-000151"
+}

@@ -48,7 +48,7 @@ namespace KITN
             "transfer.calculate" => "calculator",
             "transfer.improve" or "transfer.lowest" or "transfer.earliest" or "transfer.oberth_lowest" => "search",
             "transfer.create" => "circle-plus",
-            "transfer.execute" or "transfer.execute_capture" or "action.countdown" or "landing.start" or "rendezvous.dock" => "play",
+            "transfer.execute" or "transfer.execute_capture" or "action.countdown" or "landing.start" or "rendezvous.dock" or "rendezvous.start" => "play",
             "action.reset" => "rotate-ccw",
             "settings.open" => "settings",
             "diagnostics.open" => "sliders-horizontal",

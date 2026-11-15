@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-11-15T11:54:00.6331594+01:00",
+  "source": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installed": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "09D17C687DD1A9991A781AA3237CF1E7FD2D759C59BD747AD96ED1E978004D1B",
+  "buildWarnings": 0,
+  "buildErrors": 0,
+  "checks": [
+    "Persistent residual angle and rate oscillations converge",
+    "Native coarse RCS attitude and translation converge for front and side ports",
+    "Final angle and rate safety caps",
+    "Alignment threshold hysteresis",
+    "Rendezvous continuation",
+    "RCS spin damping and Earth atmosphere restriction",
+    "EN/DE settings persistence and active locking"
+  ],
+  "liveFlightChecked": false
+}

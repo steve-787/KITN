@@ -1,0 +1,14 @@
+{
+  "verifiedAt": "2026-11-15T12:58:03.2288471+01:00",
+  "buildPath": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedPath": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "buildSha256": "928DCAA6C7838100CED6471D630C2A76CA14D79271AD046D287D97E6341AE14A",
+  "installedSha256": "928DCAA6C7838100CED6471D630C2A76CA14D79271AD046D287D97E6341AE14A",
+  "matches": true,
+  "previousDll": "KITN.dll.previous-20261115-125751",
+  "releaseBuild": "passed; 0 warnings, 0 errors",
+  "diagnostics": "Docking Rendezvous Catalog passed",
+  "nativeChecks": "docking, rendezvous and RCS checks passed",
+  "liveFlightVerified": false,
+  "requiresGameRestart": true
+}

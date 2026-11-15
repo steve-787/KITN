@@ -23,6 +23,7 @@ namespace KITN
         public ManeuverPlanner Planner { get; set; }
         public RendezvousController Rendezvous { get; set; }
         private readonly RendezvousPage _rendezvousPage = new RendezvousPage();
+        private readonly DockingPage _dockingPage = new DockingPage();
         private readonly TransferPlannerPage _transferPage = new TransferPlannerPage();
         private bool _settingsOpen;
         private bool _diagnosticsOpen;
@@ -44,13 +45,13 @@ namespace KITN
             ImGuiCond sizeCondition = ImGuiCond.FirstUseEver;
             float2 size = new float2(780, 650) * scale;
             if (Layout != null) size = Layout.Prepare(size, scale, out sizeCondition);
-            if (!ModWindowStyle.Begin("KITN", "KITN · " + flight.VehicleName, ref open, size, sizeCondition))
+            if (!ModWindowStyle.Begin("KITN", "KITN", ref open, size, sizeCondition, customHeader: true, detached: Layout?.Detached == true))
                 return null;
             try
             {
                 Layout?.Capture(scale);
-                int activePage = _settingsOpen ? (_diagnosticsOpen ? 6 : AppNavigation.Settings) : _homeOpen ? AppNavigation.Home : _tab;
-                int selectedPage = _navigation.Draw(activePage, _homeOpen && !_settingsOpen);
+                int activePage = _settingsOpen ? (_diagnosticsOpen ? AppNavigation.Diagnostics : AppNavigation.Settings) : _homeOpen ? AppNavigation.Home : _tab;
+                int selectedPage = _navigation.DrawHeader(activePage, ref open, Layout);
                 if (selectedPage != AppNavigation.NoSelection) OpenPage(selectedPage);
                 bool running = guidance.IsActive || clock.IsCountingDown || landing?.IsActive == true
                     || Rendezvous?.IsActive == true || Planner?.IsExecuting == true;
@@ -63,7 +64,7 @@ namespace KITN
                     try
                     {
                         if (_diagnosticsOpen) DiagnosticsTab(profile, flight);
-                        else if (_settingsPage.Draw(Settings)) OpenPage(6);
+                        else if (_settingsPage.Draw(Settings)) OpenPage(AppNavigation.Diagnostics);
                     }
                     finally { PanelLayout.EndBody(); }
                     return _action;
@@ -92,9 +93,9 @@ namespace KITN
                     if (_tab != 5)
                     {
                         bool recovery = landing != null && (_tab == 4 || landing.IsActive);
-                        bool rendezvous = _tab == 3 || Rendezvous?.IsActive == true;
+                        bool rendezvous = _tab == AppNavigation.Rendezvous || _tab == AppNavigation.Docking || Rendezvous?.IsActive == true;
                         string target = rendezvous ? Rendezvous?.TargetName ?? "—" : recovery ? landing.TargetName : $"{Format(profile.TargetPeriapsisKm)} × {Format(profile.TargetApoapsisKm)} km";
-                        string phase = rendezvous ? RendezvousPage.PhaseName(Rendezvous?.Phase ?? DockingPhase.Idle)
+                        string phase = rendezvous ? RendezvousStatus()
                             : clock.IsCountingDown ? L10n.Get("clock.countdown") : recovery && !guidance.IsActive ? landing.Phase
                             : GuidancePhase(profile, guidance, flight);
                         // Status changes must not wrap the header and move every control below it.
@@ -112,10 +113,12 @@ namespace KITN
                         ModWindowStyle.Hint(target);
                         ImGui.SameLine();
                         ImGui.SetCursorPosX(Math.Max(ImGui.GetCursorPosX(), ImGui.GetWindowSize().X - phaseWidth - 16 * scale));
-                        bool phasePending = rendezvous ? Rendezvous?.IsActive == true
-                            : clock.IsCountingDown || landing?.IsActive == true || (flight.IsPlanning && !flight.HasCurrentPlan(profile));
-                        ImGui.TextColored(phasePending ? GameUiColors.Pending : GameUiColors.Muted, FitHeaderText(phase, phaseWidth));
-                        ModWindowStyle.Hint(phase);
+                        bool phaseError = rendezvous ? MessageSeverity.IsError(Rendezvous?.Message ?? (_tab == AppNavigation.Docking
+                                ? Rendezvous?.UnavailableReason : Rendezvous?.RendezvousUnavailableReason))
+                            : !clock.IsCountingDown && (recovery && !guidance.IsActive ? MessageSeverity.IsError(landing.MessageKey)
+                                : MessageSeverity.IsError(profile.StatusKey) || guidance.CurrentState == AscentGuidance.AscentState.Idle && flight.PlanningError(profile));
+                        ImGui.TextColored(GameUiColors.Message(phaseError), FitHeaderText(phase, phaseWidth));
+                        ModWindowStyle.Hint(phase, phaseError);
                     }
                     if (_tab == 5)
                     {
@@ -136,6 +139,7 @@ namespace KITN
                         case 1: PlanTab(profile, flight, locked || actionPending || _action == "countdown"); break;
                         case 2: AutomationTab(profile, locked); break;
                         case 3:
+                            _rendezvousPage.Settings = Settings;
                             string rendezvousAction = _rendezvousPage.Draw(Rendezvous, locked || actionPending);
                             if (rendezvousAction != null) _action = rendezvousAction;
                             break;
@@ -144,6 +148,10 @@ namespace KITN
                             _transferPage.Settings = Settings;
                             string transferAction = _transferPage.Draw(Planner, locked || actionPending);
                             if (transferAction != null) _action = transferAction;
+                            break;
+                        case AppNavigation.Docking:
+                            _dockingPage.Settings = Settings;
+                            _dockingPage.Draw(Rendezvous, locked || actionPending);
                             break;
                     }
                 }
@@ -161,9 +169,17 @@ namespace KITN
         private void OpenPage(int page)
         {
             _homeOpen = page == AppNavigation.Home;
-            _settingsOpen = page == AppNavigation.Settings || page == 6;
-            _diagnosticsOpen = page == 6;
-            if (page >= 0 && page < 6) _tab = page;
+            _settingsOpen = page == AppNavigation.Settings || page == AppNavigation.Diagnostics;
+            _diagnosticsOpen = page == AppNavigation.Diagnostics;
+            if (page >= 0 && page < AppNavigation.Pages.Length && page != AppNavigation.Diagnostics) _tab = page;
+        }
+
+        private string RendezvousStatus()
+        {
+            if (Rendezvous?.IsActive == true || Rendezvous?.Message != null && Rendezvous.Phase != DockingPhase.Idle)
+                return RendezvousPage.PhaseName(Rendezvous?.Phase ?? DockingPhase.Idle);
+            bool ready = _tab == AppNavigation.Docking ? Rendezvous?.CanDock == true : Rendezvous?.CanRendezvous == true;
+            return L10n.Get(ready ? "rendezvous.status.ready" : "rendezvous.status.setup");
         }
 
         internal static string FitHeaderText(string text, float width)
@@ -203,8 +219,26 @@ namespace KITN
                 }
                 else if (_tab == 3)
                 {
+                    ImGui.BeginDisabled(Rendezvous?.CanRendezvous != true);
+                    try
+                    {
+                        if (PrimaryButton("rendezvous.start")) _action = "rendezvous_start";
+                        Hint(L10n.Get(Rendezvous?.CanRendezvous == true ? "rendezvous.start_hint"
+                            : Rendezvous?.RendezvousUnavailableReason ?? "rendezvous.require_vehicle"),
+                            MessageSeverity.IsError(Rendezvous?.RendezvousUnavailableReason));
+                    }
+                    finally { ImGui.EndDisabled(); }
+                }
+                else if (_tab == AppNavigation.Docking)
+                {
                     ImGui.BeginDisabled(Rendezvous?.CanDock != true);
-                    try { if (PrimaryButton("rendezvous.dock")) _action = "rendezvous_dock"; }
+                    try
+                    {
+                        if (PrimaryButton("rendezvous.dock")) _action = "rendezvous_dock";
+                        Hint(L10n.Get(Rendezvous?.CanDock == true ? "docking.start_hint"
+                            : Rendezvous?.UnavailableReason ?? "rendezvous.require_vehicle"),
+                            MessageSeverity.IsError(Rendezvous?.UnavailableReason));
+                    }
                     finally { ImGui.EndDisabled(); }
                 }
                 else if (_tab == 5)
@@ -231,7 +265,8 @@ namespace KITN
                     try
                     {
                         if (PrimaryButton("landing.start")) _action = "landing_start";
-                        Hint(L10n.Get(landing.CanStart ? "landing.start_hint" : landing.UnavailableReason));
+                        Hint(L10n.Get(landing.CanStart ? "landing.start_hint" : landing.UnavailableReason),
+                            !landing.CanStart && MessageSeverity.IsError(landing.UnavailableReason));
                     }
                     finally { ImGui.EndDisabled(); }
                 }
@@ -245,7 +280,8 @@ namespace KITN
                             _action = "countdown";
                             _fitNext = true;
                         }
-                        Hint(flight.CanLaunch(profile) ? L10n.Format("action.countdown_hint", profile.LaunchCountdownSeconds) : flight.PlanningMessage(profile));
+                        Hint(flight.CanLaunch(profile) ? L10n.Format("action.countdown_hint", profile.LaunchCountdownSeconds) : flight.PlanningMessage(profile),
+                            flight.PlanningError(profile));
                     }
                     finally { ImGui.EndDisabled(); }
                 }
@@ -268,7 +304,7 @@ namespace KITN
 
         private void LandingTab(LandingController landing, AscentGuidance guidance, MissionClock clock)
         {
-            if (landing == null) { ImGui.TextColored(GameUiColors.Muted, L10n.Get("landing.require_vehicle")); return; }
+            if (landing == null) { GameUiColors.MessageText(L10n.Get("landing.require_vehicle")); return; }
             using (PanelLayout.Section("landing-target", "panel.landing_target", "land-plot"))
             {
                 bool locked = landing.IsActive || guidance.IsActive || clock.IsCountingDown;
@@ -311,9 +347,10 @@ namespace KITN
                 if (double.IsFinite(landing.RequiredDeltaV))
                     ConsoleWidgets.Readout(L10n.Get("landing.required_dv").AsSpan(), $"{Format(landing.RequiredDeltaV, "N0")} m/s".AsSpan());
                 if (landing.IsActive || landing.State == LandingState.Landed || landing.State == LandingState.Aborted)
-                    ImGui.TextWrapped(landing.Message);
+                    GameUiColors.MessageText(landing.Message, MessageSeverity.IsError(landing.MessageKey));
                 else
-                    ImGui.TextColored(GameUiColors.Muted, L10n.Get(guidance.IsActive || clock.IsCountingDown ? "landing.require_idle" : landing.UnavailableReason));
+                    GameUiColors.MessageText(L10n.Get(guidance.IsActive || clock.IsCountingDown ? "landing.require_idle" : landing.UnavailableReason),
+                        !guidance.IsActive && !clock.IsCountingDown && MessageSeverity.IsError(landing.UnavailableReason));
                 Hint(L10n.Get("landing.status_hint"));
             }
             using (PanelLayout.Section("landing-options"))
@@ -334,12 +371,16 @@ namespace KITN
             }
             using (PanelLayout.Section("flight-status", "panel.flight_state", "info"))
             {
-                ImGui.TextWrapped(flight.LaunchPlan != null || flight.IsPlanning ? flight.PlanningMessage(profile) : flight.Prediction.Message);
+                if (guidance.CurrentState != AscentGuidance.AscentState.Idle || MessageSeverity.IsError(profile.StatusKey))
+                    GameUiColors.MessageText(profile.StatusMessage, MessageSeverity.IsError(profile.StatusKey));
+                else if (flight.LaunchPlan != null || flight.IsPlanning)
+                    GameUiColors.MessageText(flight.PlanningMessage(profile), flight.PlanningError(profile));
+                else GameUiColors.MessageText(flight.Prediction.Message, MessageSeverity.IsError(flight.Prediction.MessageKey));
                 string routeHint = L10n.Get("route.hint");
                 if (flight.Track.Count == 0) routeHint += "\n\n" + L10n.Get("route.trace_starts");
                 if (flight.Track.Count > 0 && !guidance.IsActive) routeHint += "\n\n" + L10n.Get("route.frozen_plan");
                 Hint(routeHint);
-                if (flight.Warning != null) ImGui.TextColored(GameUiColors.Pending, flight.Warning);
+                if (flight.Warning != null) GameUiColors.MessageText(flight.Warning, flight.WarningError);
                 if (guidance.CurrentState == AscentGuidance.AscentState.CoastToApoapsis)
                 {
                     ImGui.BeginDisabled(pending);
@@ -441,9 +482,7 @@ namespace KITN
             PresetControls(profile, locked);
             if (flight.HasVehicle)
             {
-                ImGui.PushStyleColor(ImGuiCol.Text, flight.HasCurrentPlan(profile) && flight.LaunchPlan.Success ? GameUiColors.Muted : GameUiColors.Pending);
-                try { ImGui.TextWrapped(flight.PlanningMessage(profile)); }
-                finally { ImGui.PopStyleColor(); }
+                GameUiColors.MessageText(flight.PlanningMessage(profile), flight.PlanningError(profile));
             }
             ImGui.BeginDisabled(locked);
             try
@@ -459,7 +498,7 @@ namespace KITN
                     }
                     finally { ConsoleWidgets.EndRow(); }
                     if (profile.LaunchCountdownSeconds < 1 || profile.LaunchCountdownSeconds > 3600)
-                        ImGui.TextColored(GameUiColors.Pending, L10n.Get("plan.countdown_invalid"));
+                        GameUiColors.MessageText(L10n.Get("plan.countdown_invalid"), true);
                 }
                 using (PanelLayout.Section("plan-orbit", "readout.target_orbit", "orbit"))
                 {
@@ -467,7 +506,7 @@ namespace KITN
                         profile.TargetApoapsisKm = profile.TargetPeriapsisKm = 200;
                     Input("plan.apoapsis", ref profile.TargetApoapsisKm, "plan.apoapsis_hint");
                     Input("plan.periapsis", ref profile.TargetPeriapsisKm, "plan.periapsis_hint");
-                    if (!ValidOrbit(profile)) ImGui.TextColored(GameUiColors.Pending, L10n.Get("plan.orbit_invalid"));
+                    if (!ValidOrbit(profile)) GameUiColors.MessageText(L10n.Get("plan.orbit_invalid"), true);
                 }
                 using (PanelLayout.Section("plan-turn", "plan.turn", "route"))
                 {
@@ -475,7 +514,7 @@ namespace KITN
                     Input("plan.turn_end", ref profile.GravityTurnEndM, "plan.turn_end_hint");
                     Input("plan.min_speed", ref profile.GravityTurnMinSpeedMps, "plan.min_speed_hint");
                     Input("plan.heading", ref profile.LaunchHeadingDeg, "plan.heading_hint");
-                    if (!ValidTurn(profile)) ImGui.TextColored(GameUiColors.Pending, L10n.Get("plan.turn_invalid"));
+                    if (!ValidTurn(profile)) GameUiColors.MessageText(L10n.Get("plan.turn_invalid"), true);
                     Slider("plan.shape", ref profile.GravityTurnShape, 0.8f, 2, "plan.shape_hint");
                     Slider("plan.pitch_rate", ref profile.MaxPitchRateDegS, 0.1f, 1.5f, "plan.pitch_rate_hint");
                 }
@@ -570,7 +609,7 @@ namespace KITN
                 finally { ImGui.EndDisabled(); }
                 if (Presets?.IsLoaded == false)
                 {
-                    ImGui.TextWrapped(L10n.Get("preset.load_failed"));
+                    GameUiColors.MessageText(L10n.Get("preset.load_failed"), true);
                     if (Button("preset.retry"))
                     {
                         if (Presets.Load()) { _presetError = false; _presetMessage = null; }
@@ -578,7 +617,7 @@ namespace KITN
                     }
                 }
                 else if (_presetMessage != null)
-                    ImGui.TextColored(_presetError ? GameUiColors.Pending : GameUiColors.Muted, _presetMessage.ToString());
+                    GameUiColors.MessageText(_presetMessage.ToString(), _presetError);
             }
         }
 
@@ -664,13 +703,13 @@ namespace KITN
             finally { ConsoleWidgets.EndRow(); }
         }
 
-        private static void Hint(string text)
+        private static void Hint(string text, bool error = false)
         {
             if (!ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) || !ImGui.BeginTooltip()) return;
             try
             {
                 ImGui.PushTextWrapPos(Math.Min(450 * ConsoleStyle.EffectiveInterfaceScale, Math.Max(180, ImGui.GetIO().DisplaySize.X - 40)));
-                try { ImGui.TextWrapped(text); }
+                try { GameUiColors.MessageText(text, error); }
                 finally { ImGui.PopTextWrapPos(); }
             }
             finally { ImGui.EndTooltip(); }

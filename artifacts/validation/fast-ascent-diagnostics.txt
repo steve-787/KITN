@@ -1,0 +1,135 @@
+PASS Oberth results retain an independent normal Porkchop without recalculation
+PASS Independent widget visibility, themes and frame settings migrate and persist
+PASS Flight UI stays hidden in menus, builder and scenes without rockets
+PASS CSV round-trip under German and English cultures
+PASS Previous sessions stay readable and UTF-8 has no BOM
+PASS Rotation keeps three archives and a CSV header in every file
+PASS Open tail readers can observe entries while files rotate
+PASS Oversized diagnostic entries stay intact
+PASS File errors are reported to the logger for recovery
+PASS Duplicate telemetry columns are rejected
+PASS Gravity turn waits for altitude, speed and upright ascent
+PASS Default LEO pitch profile builds horizontal flight continuously
+PASS Pitch target uses simulation time and waits for real alignment
+PASS Atmospheric turn limits the angle to the flight path
+PASS Orbit calculations match known circular and escape states
+PASS Finite burn timing does not use altitude as an ignition trigger
+PASS Orbit completion requires both target apsides
+PASS Apoapsis prediction cuts radial thrust before overshoot
+  32 recorded ascent/coast orbit states reproduced
+PASS Recorded failed flight is diagnosed by orbit calculations
+  insertion start=5500 m/s: Ap=200,05, Pe=198,00 km, max Ap=200,05 km
+  insertion start=7000 m/s: Ap=200,07, Pe=198,00 km, max Ap=200,07 km
+  insertion start=7600 m/s: Ap=200,07, Pe=198,00 km, max Ap=200,07 km
+PASS Finite insertion burn converges to a 200 km LEO
+  no-RCS mission: cutoff T+159.6s, pitch=0.0°, horizontal=4320 m/s; insertion T+305.3s; Ap=200.44/Pe=199.71 km; max Ap=200.87 km; coast impulse=0.0 m/s
+PASS Recorded rocket estimates support the complete LEO ascent without RCS
+  no-RCS logged coast: cutoff T+0.0s, pitch=-0.0°, horizontal=5390 m/s; insertion T+178.6s; Ap=201.09/Pe=199.68 km; max Ap=201.09 km; coast impulse=0.0 m/s
+PASS Logged cutoff reaches the target periapsis without RCS or powered coast
+PASS Minimum-throttle pulses preserve the requested average and cutoff
+PASS Logged insertion cancels descent instead of lowering an unsafe orbit
+PASS Insertion continues after AP has moved to the next orbit
+PASS TVC thrust stays available until angular motion settles without RCS
+PASS Minimum ignition time preserves average thrust
+PASS Retrograde trims lower excess apoapsis to both target apsides
+PASS A constant excess AP does not block the preliminary retrograde trim
+PASS Graph measures surface distance independently of height and origin
+PASS Graph uses simulation time, preserves stopped traces and resets reverted flights
+PASS Bounded flight history retains the launch and full distance
+PASS Invalid measurements cannot poison the live graph
+  preview: AP 201,11 / PE 199,49 km; 3740 km distance; 675 points
+PASS Route preview responds to orbit targets and turn settings
+PASS Route preview respects finite fuel and manual staging
+  logged rebuilt rocket: success=True, AP=200.00/PE=198.34 km, turn=65000 m, reserve=12260 m/s, seconds=535.2, reason=planning.ready
+  added 30 t payload: success=True, AP=200.29/PE=198.08 km, turn=65000 m, reserve=3264 m/s, seconds=547.7, reason=planning.ready
+  25% lower thrust: success=True, AP=200.49/PE=198.35 km, turn=65000 m, reserve=12169 m/s, seconds=549.7, reason=planning.ready
+  lighter rocket: success=True, AP=199.93/PE=198.13 km, turn=65000 m, reserve=14364 m/s, seconds=530.2, reason=planning.ready
+PASS Adaptive flight plans reach LEO for rebuilt, heavier, lighter and lower-thrust rockets
+PASS Flight preview ignores orbital phase and tiny RCS changes but detects meaningful changes and verifies launch
+PASS Unflyable rockets report missing thrust, fuel, control or automatic staging
+PASS The logged safe low orbit coasts to AP while suborbital descent still captures immediately
+  physical rebuilt: T+537.5s, AP=199.72/PE=198.02 km, max AP=199.73 km, insertion=461.5s, coast impulse=0.0 m/s, pitch=9.0, state=3
+  physical heavy payload: T+551.8s, AP=200.22/PE=198.07 km, max AP=200.23 km, insertion=472.3s, coast impulse=0.0 m/s, pitch=0.0, state=3
+  physical lower thrust: T+560.0s, AP=200.33/PE=198.07 km, max AP=200.33 km, insertion=452.7s, coast impulse=0.0 m/s, pitch=-6.2, state=3
+PASS Adaptive guidance handles phased thrust, delayed TVC, minimum throttle and drag changes
+  physical VecaC logged late turn: T+445.2s, AP=199.93/PE=198.13 km, max AP=199.93 km, insertion=311.4s, coast impulse=257.4 m/s, pitch=4.1, state=3
+  turn cutoff: pitch=-0.1°, horizontal=2732 m/s, peak q=28.4 kPa
+  physical VecaC automatic plan: T+436.5s, AP=199.95/PE=198.15 km, max AP=199.95 km, insertion=306.0s, coast impulse=0.0 m/s, pitch=0.0, state=3
+  turn cutoff: pitch=0.0°, horizontal=4030 m/s, peak q=28.4 kPa
+  physical VecaC 35% more thrust: T+420.8s, AP=199.91/PE=198.06 km, max AP=200.02 km, insertion=314.9s, coast impulse=0.0 m/s, pitch=0.2, state=3
+  turn cutoff: pitch=0.0°, horizontal=4442 m/s, peak q=28.4 kPa
+  physical VecaC weaker steering: T+475.5s, AP=200.02/PE=198.03 km, max AP=200.23 km, insertion=328.9s, coast impulse=0.0 m/s, pitch=0.0, state=3
+  turn cutoff: pitch=0.0°, horizontal=4770 m/s, peak q=28.4 kPa
+PASS Fast logged ascent builds horizontal speed before cutoff and limits aerodynamic load
+PASS Ascent guards preserve liftoff and AP cutoff while reacting to max-Q and staged acceleration
+  physical logged 163 km coast: T+4113.5s, AP=199.69/PE=198.01 km, max AP=199.69 km, insertion=NaNs, coast impulse=13.6 m/s, pitch=33.9, state=2
+PASS The recorded safe 163 km orbit reaches the target after the next AP without RCS
+PASS Flight presets persist all launch settings and preserve live state
+PASS Preset updates replace their name and preserve the previous file
+PASS Invalid and corrupt preset data cannot overwrite saved flight curves
+PASS Failed preset file writes preserve data and recover on retry
+PASS Window layouts save automatically, survive restart and preserve independent geometry
+PASS Restored layouts remain reachable after resolution and UI scale changes
+PASS Window autosave preserves corrupt files and recovers from failed writes
+PASS Instrument themes and RCS permissions migrate existing layouts and persist safely
+PASS Window snapping aligns centers and edges without sticking or hiding controls
+PASS Countdown reaches zero once and mission time starts at actual launch
+PASS Mission clock formats T minus and plus with full hours, minutes and seconds
+PASS Cancelled and reset countdowns cannot launch a rocket
+PASS Mission clock follows simulation pauses, warp and time reverts
+PASS Mission elapsed time survives completed guidance and switching to a booster
+PASS Return transfers reach their rotating target in prograde and retrograde planes
+PASS Docking rejects unsafe approaches and uses stand-off, alignment and gentle final contact
+PASS RCS pulse docking reaches stationary and rotating ports from distant and lateral approaches
+PASS Gooding transfer solver matches Vallado velocities and exact Hohmann transfers
+PASS Transfer ephemerides preserve eccentric, inclined and retrograde orbits
+PASS Parking-orbit ejections reach the requested hyperbolic excess and burn location
+PASS Porkchop selection honors capture costs, departure budget and invalid cells
+PASS Lowest delta-v chooses actual cost while earliest retains affordable bound preference
+  minimum: coarse=3864,410, refined=3850,043 m/s
+PASS Lowest delta-v refines multiple minima between grid samples
+  Venus assist: candidates=4
+PASS Unpowered gravity assists conserve energy and find safe transfer encounters
+  Oberth: 2018 m/s, periapsis departure at 57924,3s
+PASS Earth Oberth search uses actual periapsis windows and rejects unavailable passages
+PASS Transfer search rejects early fallback and replans outside rejected windows
+PASS Transfer search uses best-effort routes only after non-returning options are exhausted
+PASS Transfer search reaches moving targets and settles cancellation and invalid windows
+  interplanetary: departure Δv 3888 m/s, capture 2247 m/s, SOI coast 2,39 d
+PASS Interplanetary transfers match Lambert velocities at the finite sphere of influence
+PASS Porkchop colors and contours fill invalid regions without enabling unsafe selection
+PASS Transfer ignition rejects warp, angular inertia, misalignment and missed departure
+PASS Arrival limits distinguish airless terrain and atmospheres; altitude follows nearby bodies
+PASS Missed target SOI estimates recover known underburns and lateral corrections
+PASS Capture nodes circularize inclined and retrograde lunar arrival orbits
+  atmospheric return: handover T+1584,6s, miss 572,1 m, reserve 1344 m/s
+PASS Atmospheric return targeting corrects the predicted landing footprint
+  powered landing: T+64,0s, miss 8,66 m, surface speed 0,42 m/s, vertical -0,40 m/s
+PASS Powered descent brakes vertical motion and converges on a rotating landing pad
+  return (standard booster): deorbit 74 m/s, powered 82,7s, miss 9,4 m, touchdown 0,40 m/s, landing delta-v 1281/1410 m/s, fuel left 10923 kg
+  return (high thrust / minimum throttle): deorbit 74 m/s, powered 74,6s, miss 9,0 m, touchdown 0,73 m/s, landing delta-v 1211/1362 m/s, fuel left 12123 kg
+  return (lower thrust): deorbit 74 m/s, powered 95,0s, miss 9,1 m, touchdown 0,41 m/s, landing delta-v 1303/1486 m/s, fuel left 10546 kg
+  return (retrograde orbit): deorbit 267 m/s, powered 78,8s, miss 9,3 m, touchdown 0,50 m/s, landing delta-v 1221/1378 m/s, fuel left 8731 kg
+PASS Atmospheric return and finite-fuel landing tolerate engine minimums and attitude delay
+  configured budget: gentle heavy return dv=74,6 reserve=4229,8 available=4828,3 descent=1183,5
+  final vertical=-0,596 m/s horizontal=0,545 m/s
+  return (gentle heavy return): deorbit 75 m/s, powered 174,1s, miss 5,7 m, touchdown 0,81 m/s, landing delta-v 2017/4230 m/s, fuel left 26811 kg
+  configured budget: fast large rocket dv=74,1 reserve=1685,5 available=4828,3 descent=973,3
+  final vertical=-0,712 m/s horizontal=0,232 m/s
+  return (fast large rocket): deorbit 74 m/s, powered 77,3s, miss 8,7 m, touchdown 0,75 m/s, landing delta-v 1244/1685 m/s, fuel left 53337 kg
+  configured budget: lighter slow-turning rocket dv=266,6 reserve=2596,9 available=4828,3 descent=285,1
+  final vertical=-0,497 m/s horizontal=0,322 m/s
+  return (lighter slow-turning rocket): deorbit 267 m/s, powered 136,7s, miss 11,9 m, touchdown 0,59 m/s, landing delta-v 1605/2597 m/s, fuel left 20148 kg
+PASS Customized landing profiles handle different masses, thrust, turn rates and fuel budgets
+PASS Landing settings persist, migrate and preserve corrupt files
+PASS Landing confirmation requires real sustained contact inside the selected pad
+PASS Landing logs retain a stable schema and distinguish control from mission time
+PASS Empty side boosters confirm depletion independently of the main rocket
+PASS Unequal side boosters separate independently and preserve full neighbours
+PASS Fuel transfer, transient exhaustion and reset cancel booster confirmation
+PASS Payloads, future engines and unavailable fuel data cannot trigger booster separation
+PASS Booster confirmation follows simulation pause and reverts
+PASS UI text and numbers follow the game locale independently of Windows
+PASS English and German catalogs preserve every formatted parameter
+PASS Cached status, preview and apsis names follow live language changes
+PASS Game translations override fallbacks while widget IDs remain stable

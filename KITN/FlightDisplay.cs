@@ -18,6 +18,7 @@ namespace KITN
             && LaunchPlan.RequestedSettings.Matches(profile);
         public string PlanningMessage(LaunchProfile profile) => !HasCurrentPlan(profile)
             ? L10n.Get("planning.pending") : LaunchPlan.Message;
+        public bool PlanningError(LaunchProfile profile) => HasCurrentPlan(profile) && !LaunchPlan.Success;
         public bool HasVehicle { get; private set; }
         private string _vehicleName;
         public string VehicleName { get => HasVehicle ? _vehicleName : L10n.Get("vehicle.none"); private set => _vehicleName = value; }
@@ -33,6 +34,7 @@ namespace KITN
         public int ActiveStage { get; private set; }
         private string _warningKey;
         public string Warning => _warningKey == null ? null : L10n.Get(_warningKey);
+        public bool WarningError => MessageSeverity.IsError(_warningKey);
 
         private Vehicle _vehicle;
         private IParentBody _parent;

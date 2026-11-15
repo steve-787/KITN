@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-11-14T23:39:28.0473578+01:00",
+  "hashesMatch": true,
+  "sha256": "96F6601F0ED5B74E0F6EBA729C5658C2CEA0A24269388C6C869138A4EBF1E9F4",
+  "sorting": "Planets ordered by mean solar orbital distance; moons directly follow their parent, ordered by mean distance from the parent.",
+  "validation": [
+    "Release build: zero warnings/errors",
+    "git diff --check",
+    "Installed DLL SHA256 matches Release build"
+  ]
+}

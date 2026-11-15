@@ -18,6 +18,20 @@ internal static class AdaptivePlanningTests
                 new RouteBurnPhase(955522 * thrustScale, 222.897 * thrustScale, upperMass + payload, (upperMass - 3839) / 222.897 / thrustScale, true) }
         };
     }
+    // VecaC flight 4, 2026-11-14: staged acceleration rises from 26 to over 110 m/s².
+    internal static RocketFlightModel FastLoggedRocket(double thrustScale = 1)
+    {
+        return new RocketFlightModel
+        {
+            Mu = Mu, BodyRadius = Planet, Altitude = 62.937, TangentialSpeed = 417.6, RotationSpeed = 417.6,
+            SeaLevelDensity = 1.225, AtmosphereHeight = 100800, DragArea = 381.2, MinimumThrottle = 0.2,
+            AtmosphericThrustRatio = 0.921, AttitudeAccelerationDegS2 = 13.8,
+            Phases = new[] {
+                new RouteBurnPhase(57880016 * thrustScale, 13661.691 * thrustScale, 2020477.375, 33.293 / thrustScale, true),
+                new RouteBurnPhase(28940006 * thrustScale, 6830.846 * thrustScale, 407083.250, 48.434 / thrustScale, true),
+                new RouteBurnPhase(955522.375 * thrustScale, 222.897 * thrustScale, 53815.371, 201.537 / thrustScale, true) }
+        };
+    }
     public static void RocketVariants()
     {
         foreach (var variant in new[] { ("logged rebuilt rocket", 0.0, 1.0), ("added 30 t payload", 30000.0, 1.0),

@@ -1,0 +1,11 @@
+[KITN] 2026-11-15T02:35:16.2833748+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+PASS recorded finite moon-transfer Oberth search uses native Earth periapsis epochs
+  recorded transfer: departure=10444,5s dv=5365,2m/s impulse_pe=-139018m finite_pe=-158604m burn=169,2s miss=18921291m bound=False
+  recorded transfer: departure=10444,5s dv=5529,7m/s impulse_pe=-191521m finite_pe=-213608m burn=171,7s miss=2553514m bound=False
+  recorded native lunar arrival: periapsis=100018m entry=107155,5s
+PASS recorded inclined parking orbit with finite thrust reaches lunar SOI before return at 10/100/1000 km periapsis; fuel, cancellation, fallback, impact, conic and mass-override checks
+PASS independent native Sun → Venus → Mars trajectory conserves flyby energy and reaches 199999 m arrival periapsis
+PASS native finite Earth departure crosses the moving SOI boundary and reaches Mars at 199993 m periapsis
+PASS native eccentric Earth parking orbit departs at periapsis with finite thrust and reaches Mars
+  finite Earth departure assist candidates=2
+PASS native finite Earth → Venus → Mars transfer reaches 198523 m arrival periapsis

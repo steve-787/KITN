@@ -41,6 +41,7 @@ namespace KITN
         public string Reason { get; private set; } = "idle";
         private LocalizedMessage _message = new LocalizedMessage("landing.ready", Array.Empty<object>());
         public string Message => _message.ToString();
+        public string MessageKey => _message.Key;
 
         private Vehicle _controlled, _activeVehicle;
         private Celestial _body;
@@ -386,7 +387,8 @@ namespace KITN
             double3 rates = vehicle.GetBodyRates();
             double transverse = Math.Sqrt(rates.Y * rates.Y + rates.Z * rates.Z) * FlightAttitude.RAD_TO_DEG;
             FlightComputer fc = vehicle.FlightComputer;
-            bool hasRcs = fc.RCSMode == FlightComputerRCSMode.Enabled && fc.RcsTorqueAuthority.LengthSquared() > 1e-10;
+            bool hasRcs = RcsController.Allowed(vehicle, fc.RCSMode == FlightComputerRCSMode.Enabled)
+                && fc.RcsTorqueAuthority.LengthSquared() > 1e-10;
             if (_attitude.Update(PointingError, transverse, hasRcs, vehicle.HasPhysicsBubble, 0.25))
                 SetThrottle(vehicle, _propulsion.MinimumThrottle * 0.5, dt, true);
         }
@@ -419,6 +421,7 @@ namespace KITN
         public void Abort(Vehicle vehicle, string reason = "user_abort", string message = "landing.cancelled")
         {
             if (IsActive) Release(vehicle);
+            if (reason != "user_abort" && message == "landing.cancelled") message = "landing.failed";
             Transition(LandingState.Aborted, Universe.GetElapsedSeconds(), reason, message);
             _planner = null;
         }

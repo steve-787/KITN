@@ -1,0 +1,9 @@
+{
+  "builtDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "97899FD3989ECEE297D00B3419714CBD99D1C3A487957A328541E6327191F665",
+  "hashesMatch": true,
+  "testsPassed": 93,
+  "testsFailed": 0,
+  "checkedAt": "2026-11-14T21:49:08.2214370+01:00"
+}

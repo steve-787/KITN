@@ -23,8 +23,11 @@ namespace KITN
         public UiTheme Theme { get; set; } = UiTheme.Retro;
         public bool AutoHideInstrumentFrame { get; set; }
         public bool AllowRcs { get; set; } = true;
+        public bool DetachedWindows { get; set; }
         public bool GravityAssists { get; set; }
         public LandingSettings Landing { get; set; } = new LandingSettings();
+        public RendezvousSettings Rendezvous { get; set; } = new RendezvousSettings();
+        public DockingSettings Docking { get; set; } = new DockingSettings();
         public bool MainWindowOpen { get; set; } = true;
         public Dictionary<string, UiWidgetPreferences> Widgets { get; set; }
     }
@@ -62,6 +65,17 @@ namespace KITN
                 Width = width, Height = height, InterfaceScale = scale
             };
         }
+
+        // Desktop coordinates include monitor offsets; scaling those offsets moves windows
+        // onto a different monitor. Only scale the window size in detached mode.
+        public UiWindowBounds FitDesktop(float scale, float x, float y, float width, float height)
+        {
+            UiWindowBounds fitted = Fit(scale, x, y, width, height);
+            if (fitted == null) return null;
+            fitted.X = Math.Clamp(X, x, x + Math.Max(0, width - fitted.Width));
+            fitted.Y = Math.Clamp(Y, y, y + Math.Max(0, height - fitted.Height));
+            return fitted;
+        }
     }
 
     internal sealed class UiLayoutDocument
@@ -92,8 +106,11 @@ namespace KITN
         public bool MainWindowOpen { get; private set; } = true;
         public bool MissionTimeOpen => Widget("mission_time").Enabled;
         public bool AllowRcs { get; private set; } = true;
+        public bool DetachedWindows { get; private set; }
         public bool GravityAssists { get; private set; }
         public LandingSettings Landing { get; private set; } = new LandingSettings();
+        public RendezvousSettings Rendezvous { get; private set; } = new RendezvousSettings();
+        public DockingSettings Docking { get; private set; } = new DockingSettings();
         public UiLayoutStore(string path) { _path = Path.GetFullPath(path); }
         public UiWindowBounds Find(string id) => _windows.TryGetValue(id, out UiWindowBounds bounds) ? bounds : null;
         public UiWidgetPreferences Widget(string id) => _widgets.TryGetValue(id, out var widget) ? widget.Copy() : new UiWidgetPreferences();
@@ -107,8 +124,11 @@ namespace KITN
                 UiTheme theme = UiTheme.Retro;
                 bool autoHide = false;
                 bool allowRcs = true;
+                bool detachedWindows = false;
                 bool gravityAssists = false;
                 var landing = new LandingSettings();
+                var rendezvous = new RendezvousSettings();
+                var docking = new DockingSettings();
                 bool mainOpen = true;
                 var widgets = new Dictionary<string, UiWidgetPreferences>();
                 if (File.Exists(_path))
@@ -117,7 +137,8 @@ namespace KITN
                     using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     UiLayoutDocument file = JsonSerializer.Deserialize<UiLayoutDocument>(stream, Json);
                     if (file == null || file.Version != 1 || file.Windows == null || file.Windows.Count > 16
-                        || file.Settings == null || !Enum.IsDefined(file.Settings.Theme) || file.Settings.Landing?.IsValid != true)
+                        || file.Settings == null || !Enum.IsDefined(file.Settings.Theme) || file.Settings.Landing?.IsValid != true
+                        || file.Settings.Rendezvous?.IsValid != true || file.Settings.Docking?.IsValid != true)
                         throw new InvalidDataException("Unsupported UI layout format");
                     foreach (var window in file.Windows)
                         if (string.IsNullOrWhiteSpace(window.Key) || window.Key.Length > 80 || window.Value?.IsValid != true)
@@ -126,8 +147,10 @@ namespace KITN
                     theme = file.Settings.Theme;
                     autoHide = file.Settings.AutoHideInstrumentFrame;
                     allowRcs = file.Settings.AllowRcs;
+                    detachedWindows = file.Settings.DetachedWindows;
                     gravityAssists = file.Settings.GravityAssists;
                     landing = file.Settings.Landing.Copy();
+                    rendezvous = file.Settings.Rendezvous.Copy(); docking = file.Settings.Docking.Copy();
                     mainOpen = file.Settings.MainWindowOpen;
                     if (file.Settings.Widgets != null)
                     {
@@ -144,8 +167,10 @@ namespace KITN
                 if (!widgets.ContainsKey("mission_time")) widgets.Add("mission_time", new UiWidgetPreferences { Theme = theme, AutoHideFrame = autoHide });
                 _widgets = widgets; MainWindowOpen = mainOpen;
                 _windows = windows; AllowRcs = allowRcs;
+                DetachedWindows = detachedWindows;
                 GravityAssists = gravityAssists;
                 Landing = landing;
+                Rendezvous = rendezvous; Docking = docking;
                 IsLoaded = true; IsDirty = false; _retryAfterMs = 0;
                 return true;
             }
@@ -193,6 +218,13 @@ namespace KITN
             return true;
         }
 
+        public bool SetDetachedWindows(bool enabled, long nowMs)
+        {
+            if (!IsLoaded || DetachedWindows == enabled) return false;
+            DetachedWindows = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
         public bool SetGravityAssists(bool enabled, long nowMs)
         {
             if (!IsLoaded || GravityAssists == enabled) return false;
@@ -217,6 +249,18 @@ namespace KITN
             return true;
         }
 
+        public bool SetRendezvous(RendezvousSettings settings, long nowMs)
+        {
+            if (!IsLoaded || settings?.IsValid != true || Rendezvous.Matches(settings)) return false;
+            Rendezvous = settings.Copy(); IsDirty = true; _lastChangeMs = nowMs; return true;
+        }
+
+        public bool SetDocking(DockingSettings settings, long nowMs)
+        {
+            if (!IsLoaded || settings?.IsValid != true || Docking.Matches(settings)) return false;
+            Docking = settings.Copy(); IsDirty = true; _lastChangeMs = nowMs; return true;
+        }
+
         public UiLayoutSaveResult Flush(long nowMs, bool force = false)
         {
             if (!IsLoaded || !IsDirty || (!force && (nowMs - _lastChangeMs < 500 || nowMs < _retryAfterMs)))
@@ -229,7 +273,7 @@ namespace KITN
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows,
-                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, GravityAssists = GravityAssists, Landing = Landing.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
+                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, DetachedWindows = DetachedWindows, GravityAssists = GravityAssists, Landing = Landing.Copy(), Rendezvous = Rendezvous.Copy(), Docking = Docking.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
                     if (stream.Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     stream.Flush(true);
                 }

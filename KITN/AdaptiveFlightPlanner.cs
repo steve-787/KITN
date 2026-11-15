@@ -72,11 +72,12 @@ namespace KITN
             RoutePrediction best = null;
             double bestScore = double.NegativeInfinity;
             FlightPlanSettings bestSettings = null;
-            // Try the requested curve first, then nearby and longer turns for rebuilt rockets.
-            double[] ends = { requested.GravityTurnEndM, requested.GravityTurnEndM * 0.75,
+            // Include earlier turns for rapid staged acceleration as well as longer turns
+            // needed by low-thrust cores. Throttle feedback keeps both within the radial budget.
+            double[] ends = { requested.GravityTurnEndM, requested.GravityTurnEndM * 0.5, requested.GravityTurnEndM * 0.75,
                 requested.GravityTurnEndM * 1.3, requested.GravityTurnEndM * 1.65,
                 requested.GravityTurnEndM * 2.1, requested.GravityTurnEndM * 2.6 };
-            double[] shapes = { requested.GravityTurnShape, 0.9, 1.4, 1.8 };
+            double[] shapes = { requested.GravityTurnShape, 0.8, 0.9, 1.4, 1.8 };
             foreach (double end in ends)
                 foreach (double shape in shapes)
                 {

@@ -5,11 +5,13 @@ using KSA;
 
 namespace KITN
 {
-    /// <summary>Game palette, fonts and controls with a thin frame and compact native title bar.</summary>
+    /// <summary>Game palette, fonts and controls with a thin frame and optional native title bar.</summary>
     internal static class ModWindowStyle
     {
+        public static bool SupportsDetachedWindows => (ImGui.GetIO().ConfigFlags & ImGuiConfigFlags.ViewportsEnable) != 0;
+
         public static bool Begin(string id, string title, ref bool open, float2 size, ImGuiCond condition,
-            bool hideChrome = false, bool compact = false)
+            bool hideChrome = false, bool compact = false, bool customHeader = false, bool detached = false)
         {
             ConsoleStyle.PushWidgetStyle();
             float scale = ConsoleStyle.EffectiveInterfaceScale;
@@ -22,7 +24,7 @@ namespace KITN
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, (compact ? new float2(8, 6) : new float2(16, 12)) * scale);
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new float2(8, 8) * scale);
             ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new float2(6, 3) * scale);
-            size = ConsoleStyle.ConstrainNextWindowToScreen(size);
+            if (!detached) size = ConsoleStyle.ConstrainNextWindowToScreen(size);
             ImGui.SetNextWindowSize(size, condition);
             if (hideChrome)
             {
@@ -34,7 +36,8 @@ namespace KITN
             }
             bool visible = ImGui.Begin(title + "###" + id, ref open,
                 ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoFocusOnAppearing
-                | (hideChrome ? ImGuiWindowFlags.NoBackground : ImGuiWindowFlags.None));
+                | (hideChrome ? ImGuiWindowFlags.NoBackground : ImGuiWindowFlags.None)
+                | (customHeader ? ImGuiWindowFlags.NoTitleBar : ImGuiWindowFlags.None));
             if (hideChrome) ImGui.PopStyleColor(6);
             if (!visible) End();
             return visible;
@@ -48,13 +51,13 @@ namespace KITN
             ConsoleStyle.PopWidgetStyle();
         }
 
-        public static void Hint(string text)
+        public static void Hint(string text, bool error = false)
         {
             if (!ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) || !ImGui.BeginTooltip()) return;
             try
             {
                 ImGui.PushTextWrapPos(Math.Min(450 * ConsoleStyle.EffectiveInterfaceScale, Math.Max(180, ImGui.GetIO().DisplaySize.X - 40)));
-                try { ImGui.TextWrapped(text); }
+                try { GameUiColors.MessageText(text, error); }
                 finally { ImGui.PopTextWrapPos(); }
             }
             finally { ImGui.EndTooltip(); }

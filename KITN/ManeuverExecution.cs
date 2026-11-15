@@ -20,16 +20,31 @@ namespace KITN
 
         public bool IsWarping => IsExecuting && _executionPhase == ExecutionPhase.Warping;
         public bool IsCoasting => IsExecuting && (_executionPhase == ExecutionPhase.Coasting || _executionPhase == ExecutionPhase.Validating);
-        public string DisplayMessage => Target != null && (Message == "transfer.arrival_surface" || Message == "transfer.arrival_atmosphere")
-            ? L10n.Format(Message, Target?.Id ?? "—", ((Message == "transfer.arrival_surface"
-                ? TransferSafety.SurfaceRadius(Target.MeanRadius, Target.MaxTerrainRadius)
-                : ((IParentBody)Target).GetAtmosphereRadius()) - Target.MeanRadius).ToString("N1", L10n.Culture))
+        public string DisplayMessage => RouteTarget != null && (Message == "transfer.arrival_surface" || Message == "transfer.arrival_atmosphere")
+            ? L10n.Format(Message, RouteTarget.Id, ((Message == "transfer.arrival_surface"
+                ? TransferSafety.SurfaceRadius(RouteTarget.MeanRadius, RouteTarget.MaxTerrainRadius)
+                : ((IParentBody)RouteTarget).GetAtmosphereRadius()) - RouteTarget.MeanRadius).ToString("N1", L10n.Culture))
             : Message == null ? null : L10n.Get(Message);
 
         private static double ArrivalSafetyRadius(Celestial body)
             => Math.Max(TransferSafety.SurfaceRadius(body.MeanRadius, body.MaxTerrainRadius), ((IParentBody)body).GetAtmosphereRadius());
         private static string ArrivalError(Celestial body, double altitude)
-            => TransferSafety.ArrivalError(altitude, body.MeanRadius, body.MaxTerrainRadius, ((IParentBody)body).GetAtmosphereRadius());
+        {
+            string unsafeArrival = TransferSafety.ArrivalError(altitude, body.MeanRadius, body.MaxTerrainRadius, ((IParentBody)body).GetAtmosphereRadius());
+            return unsafeArrival ?? (body.SphereOfInfluence > 0 && body.MeanRadius + altitude >= body.SphereOfInfluence
+                ? "transfer.arrival_soi" : null);
+        }
+
+        private static double DefaultArrivalAltitude(Celestial body)
+        {
+            double safety = ArrivalSafetyRadius(body);
+            double margin = body.SphereOfInfluence > safety && double.IsFinite(body.SphereOfInfluence)
+                ? Math.Min(10000, (body.SphereOfInfluence - safety) * 0.1) : 10000;
+            double radius = Math.Max(body.MeanRadius + 100000, safety + margin);
+            if (body.SphereOfInfluence > safety && double.IsFinite(body.SphereOfInfluence))
+                radius = Math.Min(radius, Math.Max(safety + margin, body.SphereOfInfluence * 0.5));
+            return radius - body.MeanRadius;
+        }
 
         internal static void ClearThrustInputs(Vehicle vehicle)
         {

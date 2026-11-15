@@ -61,8 +61,10 @@ namespace KITN
             var altitudes = new List<double>(2048);
             var turn = new GravityTurnController();
             var actuator = new ThrottleActuator();
+            var gate = new InsertionAttitudeGate();
             double radius = bodyRadius + Math.Max(0, startAltitude), vr = radialSpeed, vt = tangentialSpeed;
             double mass = phases[0].StartMass, pitch = 90, distance = 0, spent = 0, time = 0, bodyRate = 0;
+            double commandPitch = 90, previousThrottle = 0;
             int stage = 0, state = 0;
             const double deg = 180 / Math.PI;
             double dt = 0.1;
@@ -110,6 +112,7 @@ namespace KITN
                     mass = burn.StartMass;
                     spent = 0;
                     actuator.Reset();
+                    previousThrottle = 0;
                 }
                 double surfaceTangent = vt - rotationSpeed * radius / bodyRadius;
                 double speed = Math.Sqrt(vr * vr + surfaceTangent * surfaceTangent);
@@ -117,7 +120,8 @@ namespace KITN
                 double q = 0.5 * density * speed * speed;
                 double thrustFactor = adaptive ? 1 - (1 - atmosphericThrustRatio) * Math.Exp(-Math.Max(0, altitude) / scaleHeight) : 1;
                 double acceleration = burn.Thrust * thrustFactor / mass;
-                dt = adaptive && state == 2 ? Math.Clamp(TimeToAp(mu, radius, vr, vt) / 100, 0.1, 2) : adaptive ? 0.2 : 0.1;
+                dt = adaptive && state == 2 && !gate.NeedsThrust
+                    ? Math.Clamp(TimeToAp(mu, radius, vr, vt) / 100, 0.05, 2) : adaptive ? 0.05 : 0.1;
                 if (state == 0 && GravityTurnController.ReadyToTurn(altitude, profile.GravityTurnStartM,
                     speed, profile.GravityTurnMinSpeedMps, vr, pitch))
                 {
@@ -127,12 +131,15 @@ namespace KITN
                 double throttle, desiredPitch = 90;
                 if (state <= 1)
                 {
-                    throttle = OrbitInsertion.AscentThrottle(mu, bodyRadius, radius, vr, vt,
-                        profile.TargetApoapsisM, acceleration, pitch, dt, out _);
+                    throttle = AdaptiveAscentControl.Throttle(mu, bodyRadius, radius, vr, vt,
+                        profile.TargetApoapsisM, acceleration, pitch,
+                        GravityTurnController.RateLimit(altitude, profile.MaxPitchRateDegS),
+                        speed, density, q, atmosphereHeight, dt, out _, out _);
                     if (state == 1)
                     {
                         double target = GravityTurnController.ProfilePitch(altitude, profile.GravityTurnStartM,
                             profile.GravityTurnEndM, profile.GravityTurnShape);
+                        target = GravityTurnController.InitiateTurn(target, altitude, profile.GravityTurnStartM);
                         target = GravityTurnController.LimitPitchForApoapsis(target, altitude, ap, profile.TargetApoapsisM);
                         if (adaptive) target = AdaptiveAscentControl.Pitch(target, mu, bodyRadius, radius, vr, vt,
                             profile.TargetApoapsisM, acceleration, q, atmosphereHeight);
@@ -146,6 +153,8 @@ namespace KITN
                     {
                         state = 2;
                         throttle = 0;
+                        commandPitch = pitch;
+                        gate.Reset();
                     }
                 }
                 else
@@ -160,24 +169,46 @@ namespace KITN
                         bodyRadius + profile.TargetPeriapsisM, bodyRadius + profile.TargetApoapsisM, acceleration);
                     desiredPitch = state == 2 ? 0 : command.PitchDeg;
                     if (!adaptive) pitch += Math.Clamp(Wrap(desiredPitch - pitch), -3 * dt, 3 * dt);
-                    throttle = state == 3 && Math.Abs(Wrap(desiredPitch - pitch)) <= 5 ? command.Throttle : 0;
+                    double error = Math.Abs(Wrap(desiredPitch - pitch));
+                    bool safeCoast = pe >= Math.Max(100000, atmosphereHeight + 5000);
+                    bool window = state == 3 || altitude >= 100000
+                        && (TimeToAp(mu, radius, vr, vt) <= Math.Max(30, OrbitInsertion.BurnLead(duration) + error / 2 + 10)
+                            || !safeCoast && (vr <= 0 || Math.Abs(bodyRate) > 0.3));
+                    bool settling = adaptive && gate.Update(error, Math.Abs(bodyRate), false, window);
+                    throttle = state == 3 && error <= 5 ? Math.Max(command.Throttle, settling ? 0.01 : 0)
+                        : settling ? 0.05 : 0;
                     throttle = OrbitInsertion.GuardInsertionThrottle(mu, bodyRadius, radius, vr, vt,
                         profile.TargetApoapsisM, acceleration, pitch, throttle, dt, out _);
                 }
-                if (adaptive)
-                {
-                    double rateLimit = state <= 1 ? GravityTurnController.RateLimit(altitude, profile.MaxPitchRateDegS) : 3;
-                    double desiredRate = Math.Clamp(Wrap(desiredPitch - pitch) / 0.4, -rateLimit, rateLimit);
-                    bodyRate += Math.Clamp((desiredRate - bodyRate) / 0.25, -attitudeAccelerationDegS2, attitudeAccelerationDegS2) * dt;
-                    pitch = Math.Clamp(pitch + bodyRate * dt, -180, 180);
-                }
-                else if (state <= 1) pitch = desiredPitch;
                 double minimum = double.IsFinite(minimumThrottle) ? Math.Clamp(minimumThrottle, 0, 1) : 0;
+                double pulse = adaptive && gate.NeedsThrust
+                    && (Math.Abs(Wrap(desiredPitch - pitch)) > 5 || Math.Abs(bodyRate) > 0.3) ? 0.12 : 0.001;
                 bool safePulse = OrbitInsertion.GuardImpulse(mu, bodyRadius, radius, vr, vt,
                     state < 2 ? profile.TargetApoapsisM : OrbitInsertion.ApoapsisCeiling(profile.TargetApoapsisM),
-                    acceleration, pitch, minimum, dt, out _) >= minimum - 1e-6;
-                throttle = actuator.Command(throttle, minimum, dt, safePulse);
+                    acceleration, pitch, minimum, Math.Max(dt, pulse), out _) >= minimum - 1e-6;
+                throttle = actuator.Command(throttle, minimum, dt, safePulse, pulse);
                 throttle = Math.Min(throttle, Math.Max(0, (burn.FullThrottleSeconds - spent) / dt));
+                if (adaptive)
+                {
+                    double rateLimit = state <= 1 ? GravityTurnController.RateLimit(altitude, profile.MaxPitchRateDegS)
+                        : state == 2 ? 2 : 3;
+                    double orbitRate = vt / radius * deg;
+                    if (state <= 1) commandPitch = desiredPitch;
+                    else
+                    {
+                        commandPitch += orbitRate * dt;
+                        if (Math.Abs(Wrap(commandPitch - pitch)) <= 4 && Math.Abs(bodyRate) <= rateLimit + 0.3)
+                            commandPitch += Math.Clamp(Wrap(desiredPitch - commandPitch), -rateLimit * dt, rateLimit * dt);
+                    }
+                    double desiredRate = Math.Clamp(Wrap(commandPitch - pitch) / 0.4, -rateLimit, rateLimit) - orbitRate;
+                    // TVC cannot rotate an unpowered rocket. Include the previous powered frame
+                    // and the changing local horizon rather than inventing coast steering authority.
+                    double authority = throttle > 0 && previousThrottle > 0 ? attitudeAccelerationDegS2 * 0.8 * throttle : 0;
+                    bodyRate += Math.Clamp((desiredRate - bodyRate) / 0.25, -authority, authority) * dt;
+                    pitch = Wrap(pitch + (bodyRate + orbitRate) * dt);
+                    previousThrottle = throttle;
+                }
+                else if (state <= 1) pitch = desiredPitch;
                 double drag = q * dragArea / mass;
                 double ar = vt * vt / radius - mu / (radius * radius) + acceleration * throttle * Math.Sin(pitch / deg)
                     - (speed > 0.1 ? drag * vr / speed : 0);

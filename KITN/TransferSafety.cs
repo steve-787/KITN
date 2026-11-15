@@ -52,6 +52,35 @@ namespace KITN
                 && distance <= 2 * soi && distance > 0
                 && distance - radius < currentAltitude * (retained ? 1.1 : 0.9);
 
+        // An impulsive correction to the near edge of the destination SOI at the selected arrival.
+        // This is an estimate for the predicted coast, not a measure of remaining onboard fuel.
+        public static double SoiCorrectionDeltaV(double mu, LandingVector position, LandingVector velocity,
+            LandingVector predictedArrival, LandingVector targetArrival, double targetSoi, double remainingSeconds)
+        {
+            if (!double.IsFinite(mu) || mu <= 0 || !position.IsFinite || !velocity.IsFinite
+                || !predictedArrival.IsFinite || !targetArrival.IsFinite || !double.IsFinite(targetSoi) || targetSoi < 0
+                || !double.IsFinite(remainingSeconds) || remainingSeconds <= 0 || position.Length < 1 || targetArrival.Length < 1)
+                return double.NaN;
+            var miss = predictedArrival - targetArrival;
+            if (miss.Length <= targetSoi) return 0;
+            var endpoint = targetArrival + miss.Unit * (targetSoi * 0.99);
+            var normal = LandingVector.Cross(position, velocity);
+            if (normal.Length < 1e-12) return double.NaN;
+            double best = double.PositiveInfinity;
+            foreach (int revolutions in new[] { 0, 1, -1, 2, -2 })
+            {
+                try
+                {
+                    var (required, _) = TransferLambert.Solve(mu, position, endpoint, remainingSeconds,
+                        TransferGeometry.Prograde, revolutions, normal);
+                    double correction = (required - velocity).Length;
+                    if (double.IsFinite(correction)) best = Math.Min(best, correction);
+                }
+                catch (Exception) { /* That Lambert branch may have no feasible solution. */ }
+            }
+            return double.IsFinite(best) ? best : double.NaN;
+        }
+
         // At periapsis the circular capture velocity is tangential to the measured incoming orbit.
         public static bool Capture(double mu, LandingVector position, LandingVector velocity, out LandingVector deltaV)
         {

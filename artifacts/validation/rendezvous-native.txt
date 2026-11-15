@@ -1,0 +1,11 @@
+[KITN] 2026-11-15T01:12:00.8577953+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+PASS native finite rendezvous (7000000, 0,5, 0): dv=83,41 m/s, miss=2,386 m, after braking=500,02 m / 0,001 m/s
+PASS native finite rendezvous (7200000, 1, 0): dv=106,57 m/s, miss=1,462 m, after braking=499,92 m / 0,002 m/s
+PASS native finite rendezvous (7400000, 0,8, 0,1): dv=794,35 m/s, miss=0,052 m, after braking=491,13 m / 0,022 m/s
+PASS native finite rendezvous (7000000, 0,0004, 0): dv=4,81 m/s, miss=0,000 m, after braking=500,00 m / 0,000 m/s
+[KITN] 2026-11-15T01:12:01.6020478+01:00 [INFO] [RENDEZVOUS] event=stopped
+PASS native rendezvous node order, ownership, cancellation and saved control restoration
+[KITN] 2026-11-15T01:12:01.6227020+01:00 [INFO] [RENDEZVOUS] event=ignition type=departure time_s=1000,000
+[KITN] 2026-11-15T01:12:01.6265856+01:00 [INFO] [RENDEZVOUS] event=stopped
+PASS rendezvous coast/warp, RCS restoration, alignment and ignition guards, actual arrival replacement and stale native target handling
+PASS Rendezvous start/disabled/stop buttons in English and German at normal and minimum width

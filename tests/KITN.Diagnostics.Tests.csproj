@@ -13,17 +13,30 @@
     <Compile Include="MissionClockTests.cs" />
     <Compile Include="LandingTests.cs" />
     <Compile Include="LandingSettingsTests.cs" />
+    <Compile Include="ProximitySettingsTests.cs" />
+    <Compile Include="../KITN/ProximitySettings.cs" Link="ProximitySettings.cs" />
     <Compile Include="TransferTests.cs" />
+    <Compile Include="TransferNestedTests.cs" />
     <Compile Include="TransferOptimizationTests.cs" />
     <Compile Include="TransferSafetyTests.cs" />
     <Compile Include="../KITN/TransferSafety.cs" Link="TransferSafety.cs" />
     <Compile Include="DockingTests.cs" />
+    <Compile Include="DockingClearanceTests.cs" />
+    <Compile Include="DockingOverlayTests.cs" />
+    <Compile Include="RendezvousTests.cs" />
     <Compile Include="../KITN/DockingMath.cs" Link="DockingMath.cs" />
+    <Compile Include="../KITN/DockingEngineMath.cs" Link="DockingEngineMath.cs" />
+    <Compile Include="DockingEngineTests.cs" />
+    <Compile Include="../KITN/RcsPulseControl.cs" Link="RcsPulseControl.cs" />
+    <Compile Include="../KITN/DockingGuidancePlan.cs" Link="DockingGuidancePlan.cs" />
+    <Compile Include="../KITN/DockingOverlayGeometry.cs" Link="DockingOverlayGeometry.cs" />
+    <Compile Include="../KITN/RendezvousMath.cs" Link="RendezvousMath.cs" />
     <Compile Include="../KITN/TransferMath.cs" Link="TransferMath.cs" />
     <Compile Include="../KITN/TransferMinimumSearch.cs" Link="TransferMinimumSearch.cs" />
     <Compile Include="../KITN/TransferOberth.cs" Link="TransferOberth.cs" />
     <Compile Include="../KITN/TransferGravityAssist.cs" Link="TransferGravityAssist.cs" />
     <Compile Include="../KITN/TransferCoast.cs" Link="TransferCoast.cs" />
+    <Compile Include="../KITN/TransferNestedArrival.cs" Link="TransferNestedArrival.cs" />
     <Compile Include="../KITN/TransferLambert.cs" Link="TransferLambert.cs" />
     <Compile Include="../KITN/TransferPlotData.cs" Link="TransferPlotData.cs" />
     <Compile Include="FlightPresetTests.cs" />

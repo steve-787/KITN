@@ -18,8 +18,41 @@ internal static class AdaptiveFlightSimulation
         RocketFlightModel model = AdaptivePlanningTests.LoggedRocket();
         Simulate("logged 163 km coast", model, FlightPlanSettings.Capture(new LaunchProfile()), true);
     }
+    public static void FastAscent()
+    {
+        var profile = new LaunchProfile { GravityTurnEndM = 107250, GravityTurnShape = 1.8f };
+        Simulate("VecaC logged late turn", AdaptivePlanningTests.FastLoggedRocket(), FlightPlanSettings.Capture(profile), false, true);
+        foreach (var variant in new[] { ("VecaC automatic plan", 1.0, 13.8, 1.0f),
+            ("VecaC 35% more thrust", 1.35, 13.8, 1.0f), ("VecaC weaker steering", 1.0, 3.0, 1.0f) })
+        {
+            RocketFlightModel model = AdaptivePlanningTests.FastLoggedRocket(variant.Item2);
+            model.AttitudeAccelerationDegS2 = variant.Item3;
+            var requested = new LaunchProfile { MaxPitchRateDegS = variant.Item4 };
+            AdaptiveFlightPlan plan = AdaptiveFlightPlanner.Calculate(FlightPlanSettings.Capture(requested), model);
+            if (!plan.Success) throw new InvalidOperationException("No plan for " + variant.Item1 + ": " + plan.Message);
+            Simulate(variant.Item1, model, plan.Settings, false, true);
+        }
+    }
 
-    private static void Simulate(string name, RocketFlightModel model, FlightPlanSettings settings, bool lowOrbit)
+    public static void AscentGuards()
+    {
+        const double mu = 3.986004418e14, planet = 6371000;
+        double Command(double altitude, double vr, double acceleration, double density, double q, out string reason)
+            => AdaptiveAscentControl.Throttle(mu, planet, planet + altitude, vr, 417.6, 200000,
+                acceleration, 87, 1, vr, density, q, 100800, Dt, out _, out reason);
+        if (Command(60, 0, 11, 1.2, 0, out _) != 1)
+            throw new InvalidOperationException("Ascent guards prevent a low-TWR rocket lifting off");
+        if (!(Command(12000, 650, 110, 0.23, 50000, out string pressureReason) < 0.3)
+            || pressureReason != "ascent_dynamic_pressure")
+            throw new InvalidOperationException("Staging at max-Q does not reduce aerodynamic load");
+        if (!(Command(30000, 1100, 110, 0, 0, out string turnReason) < 0.15)
+            || turnReason != "gravity_turn_radial_speed")
+            throw new InvalidOperationException("Rapid vacuum climb uses all radial energy before steering");
+        if (Command(50000, 2000, 110, 0, 0, out _) != 0)
+            throw new InvalidOperationException("Turn support overrides the apoapsis cutoff");
+    }
+
+    private static void Simulate(string name, RocketFlightModel model, FlightPlanSettings settings, bool lowOrbit, bool checkTurn = false)
     {
         var profile = new LaunchProfile(); settings.Apply(profile);
         var turn = new GravityTurnController(); var actuator = new ThrottleActuator(); var gate = new InsertionAttitudeGate();
@@ -32,6 +65,7 @@ internal static class AdaptiveFlightSimulation
         double pitch = lowOrbit ? 0.0455 : 90, bodyRate = lowOrbit ? -0.06 : 0, commandPitch = pitch;
         double previousThrottle = 0, highestAp = 0, firstInsertion = double.NaN, coastImpulse = 0;
         bool complete = false;
+        double cutoffPitch = double.NaN, cutoffHorizontal = double.NaN, peakPressure = 0;
         double time = 0;
         for (int step = 0; step < (lowOrbit ? 350000 : 100000); step++)
         {
@@ -47,6 +81,7 @@ internal static class AdaptiveFlightSimulation
             double speed = Math.Sqrt(vr * vr + surfaceTangent * surfaceTangent);
             double density = altitude >= model.AtmosphereHeight ? 0 : model.SeaLevelDensity * Math.Exp(-Math.Max(0, altitude) / (model.AtmosphereHeight / 14));
             double q = 0.5 * density * speed * speed;
+            if (state < 2) peakPressure = Math.Max(peakPressure, q);
             double thrust = burn.Thrust * (1 - (1 - model.AtmosphericThrustRatio) * Math.Exp(-Math.Max(0, altitude) / (model.AtmosphereHeight / 14)));
             double acceleration = thrust / mass, orbitRate = vt / radius * Deg;
             var orbit = OrbitInsertion.CalculateOrbit(model.Mu, radius, vr, vt);
@@ -59,11 +94,14 @@ internal static class AdaptiveFlightSimulation
             double throttle = 0, desiredPitch = 90;
             if (state <= 1)
             {
-                throttle = OrbitInsertion.AscentThrottle(model.Mu, model.BodyRadius, radius, vr, vt,
-                    profile.TargetApoapsisM, acceleration, pitch, Dt, out _);
+                throttle = AdaptiveAscentControl.Throttle(model.Mu, model.BodyRadius, radius, vr, vt,
+                    profile.TargetApoapsisM, acceleration, pitch,
+                    GravityTurnController.RateLimit(altitude, profile.MaxPitchRateDegS),
+                    speed, density, q, model.AtmosphereHeight, Dt, out _, out _);
                 if (state == 1)
                 {
                     double target = GravityTurnController.ProfilePitch(altitude, profile.GravityTurnStartM, profile.GravityTurnEndM, profile.GravityTurnShape);
+                    target = GravityTurnController.InitiateTurn(target, altitude, profile.GravityTurnStartM);
                     target = GravityTurnController.LimitPitchForApoapsis(target, altitude, ap, profile.TargetApoapsisM);
                     target = AdaptiveAscentControl.Pitch(target, model.Mu, model.BodyRadius, radius, vr, vt,
                         profile.TargetApoapsisM, acceleration, q, model.AtmosphereHeight);
@@ -71,7 +109,7 @@ internal static class AdaptiveFlightSimulation
                     desiredPitch = turn.Update(target, pitch, Math.Abs(turn.CommandedPitchDeg - pitch), Math.Abs(bodyRate),
                         GravityTurnController.RateLimit(altitude, profile.MaxPitchRateDegS), Dt);
                     if (ap >= profile.TargetApoapsisM - 600 && throttle < 0.15)
-                    { state = 2; commandPitch = pitch; gate.Reset(); throttle = 0; }
+                    { state = 2; commandPitch = pitch; gate.Reset(); throttle = 0; cutoffPitch = pitch; cutoffHorizontal = surfaceTangent; }
                 }
             }
             if (state >= 2)
@@ -122,6 +160,12 @@ internal static class AdaptiveFlightSimulation
         }
         var final = OrbitInsertion.CalculateOrbit(model.Mu, radius, vr, vt);
         Console.WriteLine(FormattableString.Invariant($"  physical {name}: T+{time:F1}s, AP={(final.ApoapsisRadius-model.BodyRadius)/1000:F2}/PE={(final.PeriapsisRadius-model.BodyRadius)/1000:F2} km, max AP={highestAp/1000:F2} km, insertion={firstInsertion:F1}s, coast impulse={coastImpulse:F1} m/s, pitch={pitch:F1}, state={state}"));
+        if (checkTurn)
+        {
+            Console.WriteLine(FormattableString.Invariant($"  turn cutoff: pitch={cutoffPitch:F1}°, horizontal={cutoffHorizontal:F0} m/s, peak q={peakPressure/1000:F1} kPa"));
+            if (!(cutoffPitch < 45 && cutoffHorizontal > 1500 && peakPressure < 40000))
+                throw new InvalidOperationException("Fast ascent reached the AP ceiling before a useful gravity turn or exceeded aerodynamic load");
+        }
         if (!complete) throw new InvalidOperationException("Physical adaptive flight failed for " + name);
         if (lowOrbit && (time < 3000 || double.IsFinite(firstInsertion) && firstInsertion < 3000))
             throw new InvalidOperationException("Safe low orbit completed or fired before the next AP");

@@ -63,7 +63,7 @@ namespace KITN
         public static void Search(TransferGrid grid, CancellationToken cancellation, Action<int> progress)
         {
             var request = grid.Request;
-            if (!request.GravityAssists || request.AssistBodies.Length == 0) { progress?.Invoke(100); return; }
+            if (request.NestedArrival || !request.GravityAssists || request.AssistBodies.Length == 0) { progress?.Invoke(100); return; }
             bool bestEffort = grid.BestEffortPass;
             int departures = Math.Min(32, request.Width), durations = 16;
             for (int bodyIndex = 0; bodyIndex < request.AssistBodies.Length; bodyIndex++)

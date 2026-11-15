@@ -11,7 +11,7 @@ using Brutal.Numerics;
 using KITN;
 using KSA;
 
-internal static class Program
+internal static partial class Program
 {
     private const string Game = @"K:\Games\Kitten Space Agency";
     private static Assembly Mod;
@@ -100,6 +100,47 @@ internal static class Program
         Set(predicted, "Altitudes", new double[] { 0, 25, 60, 100, 150, 180, 197, 200 });
         Set(predicted, "MessageKey", "preview.complete");
         for (int frame = 0; frame < 3; frame++) Frame(true);
+        if (Environment.GetCommandLineArgs().Contains("--rendezvous-checks"))
+        {
+            RendezvousManeuverChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--docking-checks"))
+        {
+            AutomaticDockingChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--docking-overlay-checks"))
+        {
+            DockingOverlayChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--transfer-route-checks"))
+        {
+            TransferRouteChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--native-transfer-checks"))
+        {
+            RecordedTransferChecks(DispatchProxy.Create<IParentBody, PlannerBodyProxy>());
+            NativeGravityAssistChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--rcs-checks"))
+        {
+            RcsChecks(); RendezvousRateHoldChecks(); EarthAtmosphereRcsChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--soi-shortfall-checks"))
+        {
+            SoiShortfallChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--porkchop-axis-checks"))
+        {
+            PorkchopAxisChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--header-widget-checks"))
+        {
+            HeaderWidgetChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--detached-window-checks"))
+        {
+            DetachedWindowChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--staging-checks"))
         {
             StagingChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
@@ -113,7 +154,7 @@ internal static class Program
             Call(Store, "SetTheme", Enum.Parse(Mod.GetType("KITN.UiTheme"), theme), Environment.TickCount64);
             for (int frame = 0; frame < 45; frame++) Frame(true);
             Save("instruments-" + theme.ToLowerInvariant() + ".png", 416, 288, 820, 12);
-            for (int tab = 0; tab < 6; tab++)
+            foreach (int tab in new[] { 0, 1, 2, 3, 6, 4, 5 })
             {
                 Set(Window, "_tab", tab);
                 for (int frame = 0; frame < 45; frame++) Frame(true);
@@ -124,16 +165,16 @@ internal static class Program
             for (int frame = 0; frame < 45; frame++) Frame(true);
             Save("settings-" + theme.ToLowerInvariant() + ".png", 800, 670, 12, 12);
             Set(Window, "_settingsOpen", false);
-            Console.WriteLine("PASS native all six modes and general Settings with " + theme + " theme");
+            Console.WriteLine("PASS native all seven modes and general Settings with " + theme + " theme");
         }
         if (CaptureOnly)
         {
             foreach (string locale in new[] { "en-US", "de-DE" })
             {
                 Mod.GetType("KITN.L10n").GetMethod("SetLocale").Invoke(null, new object[] { locale });
-                for (int tab = 0; tab < 7; tab++)
+                foreach (int tab in new[] { 0, 1, 2, 3, 6, 4, 5, 7 })
                 {
-                    Set(Window, "_tab", tab); Set(Window, "_settingsOpen", tab == 6);
+                    Set(Window, "_tab", tab); Set(Window, "_settingsOpen", tab == 7);
                     for (int frame = 0; frame < 60; frame++) Frame(true, true);
                     Save($"page-{tab}-{locale}-minimum.png", 580, 420, 12, 12);
                 }
@@ -396,6 +437,50 @@ internal static class Program
             "Docking leaves automatic RCS settings on the newly combined vehicle");
         Console.WriteLine("PASS disabling RCS stops docking, clears thrust commands and restores manual controls");
         Set(Window, "_settingsOpen", false); Set(Window, "_tab", 0); Set(Window, "Rendezvous", null);
+    }
+
+    private static void EarthAtmosphereRcsChecks()
+    {
+        var body = DispatchProxy.Create<IParentBody, PlannerBodyProxy>();
+        var proxy = (PlannerBodyProxy)body;
+        proxy.AtmosphereRadius = proxy.Radius + 100800;
+        var vehicle = (Vehicle)RuntimeHelpers.GetUninitializedObject(typeof(Vehicle));
+        var fc = new FlightComputer { RCSMode = FlightComputerRCSMode.Enabled, AttitudeTrackTarget = FlightComputerAttitudeTrackTarget.None };
+        Set(vehicle, "FlightComputer", fc);
+        var controller = New("RcsController");
+        var allowed = Mod.GetType("KITN.RcsController").GetMethod("Allowed");
+        void AtAltitude(double altitude)
+        {
+            var orbit = Orbit.CreateFromStateCci(body, Universe.GetElapsedTime(), new double3(proxy.Radius + altitude, 0, 0),
+                new double3(0, 7500, 0), byte4.Zero);
+            Set(vehicle, "FlightPlan", new FlightPlan(orbit, KeyHash.Zero));
+        }
+        foreach (double altitude in new[] { 60.0, 30000.0, 100799.0, 100800.0 })
+        {
+            AtAltitude(altitude);
+            Check(!(bool)allowed.Invoke(null, new object[] { vehicle, true }), "Earth atmosphere permits RCS at " + altitude);
+            Call(controller, "Update", vehicle, true, true, true, true);
+            Check(fc.RCSMode == FlightComputerRCSMode.Disabled, "Transfer or docking overrides the Earth atmosphere RCS block");
+        }
+        AtAltitude(100801);
+        Call(controller, "Update", vehicle, true, true, false, false);
+        Check(fc.RCSMode == FlightComputerRCSMode.Enabled, "RCS does not return after leaving Earth's atmosphere");
+        Call(controller, "Update", vehicle, true, false, true, false);
+        Check(fc.RCSMode == FlightComputerRCSMode.Disabled, "Leaving Earth's atmosphere overrides the saved RCS preference");
+        AtAltitude(50000);
+        Call(controller, "Update", vehicle, true, true, false, false);
+        Check(fc.RCSMode == FlightComputerRCSMode.Disabled, "Reentry does not reapply the RCS block");
+        proxy.Id = "Mars";
+        Call(controller, "Update", vehicle, true, true, false, false);
+        Check(fc.RCSMode == FlightComputerRCSMode.Enabled, "Earth-only RCS restriction also blocks another planet");
+        Call(controller, "Restore");
+        Check(fc.RCSMode == FlightComputerRCSMode.Enabled, "Atmosphere restriction changes the player's saved manual RCS mode");
+        var environment = Mod.GetType("KITN.RcsSteering").GetMethod("EnvironmentPermitted");
+        Check(!(bool)environment.Invoke(null, new object[] { true, "Custom Earth", "Earth", proxy.Radius + 50000, proxy.AtmosphereRadius }),
+            "Earth template aliases bypass the atmospheric RCS restriction");
+        Check(!(bool)environment.Invoke(null, new object[] { true, "Earth", "Earth", double.NaN, proxy.AtmosphereRadius }),
+            "Unknown Earth position enables RCS");
+        Console.WriteLine("PASS native Earth atmosphere RCS block covers ascent, reentry, transfers and docking, restores permission in space and preserves manual settings");
     }
 
     private static void RcsChecks()
@@ -1930,7 +2015,7 @@ internal static class Program
         if (place)
         {
             ImGui.SetNextWindowPos(new float2(20, 20), ImGuiCond.Always);
-            ImGui.SetWindowSize("KITN · LEO Test Vehicle###KITN", small ? new float2(560, 400) : new float2(780, 650), ImGuiCond.Always);
+            ImGui.SetWindowSize("KITN###KITN", small ? new float2(560, 400) : new float2(780, 650), ImGuiCond.Always);
         }
         MainAction = (string)Call(Window, "Draw", true, Profile, Guidance, Flight, Clock, true, false, Landing);
         if (Focus == "mission_time") ImGui.SetNextWindowFocus();

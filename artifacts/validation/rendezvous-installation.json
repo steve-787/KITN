@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-11-15T01:12:37.1643088+01:00",
+  "source": "C:\\Users\\karst\\Documents\\MechJeb2\\MechJebLib\\Maneuvers\\TwoImpulseTransfer.cs",
+  "builtDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "74C755FDF9A3F0073F9A700DAA42387F6AD2CEB157957838AF1792B5ECC9F922",
+  "verified": true,
+  "checks": [
+    "Release build: 0 warnings, 0 errors",
+    "Rendezvous orbital math and RCS simulations",
+    "Native KSA finite departure and braking burns",
+    "Native KSA node ownership, cancellation and settings restoration",
+    "Native alignment, warp, ignition and arrival handoff",
+    "English/German Rendezvous controls at both window widths",
+    "Existing docking, localization and transfer ignition regressions",
+    "Native RCS and Earth atmosphere permission checks",
+    "Custom header and minimized widget checks"
+  ]
+}

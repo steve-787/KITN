@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-15T02:36:22.4373768+01:00",
+  "builtDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "9EF1B3E7134D18D004472BD6366EC767BE3CA8EEF8F3B3F7C041D48C1C8BB74A",
+  "verified": true,
+  "rootCause": "KSA RateHold does not clear CustomAttitudeTarget; when tracking is None, native control interprets retained Euler angles as angular rates. Live log: custom=(1.58,0,0.155) rad/s; roll remained approximately 1.579 rad/s during local RCS approach.",
+  "correction": "Clear the angular-rate target when stopping attitude tracking; enforce zero inertial rate throughout local approach while retaining translation and native spin damping.",
+  "checks": [
+    "Native regression reproduces old custom angles commanding spin, then verifies zero commanded rate, damping on all axes and no rotational impulse at rest",
+    "Full rendezvous continuation with logged stale custom values reaches 100.02 m stand-off at 0.014 m/s; zero-rate target remains stable throughout translation",
+    "Native RCS economy, Earth atmosphere restriction, warp/alignment/ignition, cancellation and control restoration passed",
+    "Rendezvous and Docking UI actions passed in EN/DE at both widths",
+    "Native finite lunar/planet transfers and gravity assists passed",
+    "Release and native test builds: 0 warnings, 0 errors"
+  ],
+  "preservedLoadedDll": "KITN.dll.previous-20261115-023603"
+}

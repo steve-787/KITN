@@ -1,0 +1,12 @@
+{
+  "hashesMatch": true,
+  "sha256": "3110CDD2CDFC24729620A381BE22783A4D9D2E17ED98489A20FDA35E41FAF352",
+  "checkedAt": "2026-11-14T22:51:38.4094553+01:00",
+  "validation": [
+    "Release build",
+    "Localized header and minimized widget checks",
+    "Red localized SOI status check",
+    "Localization and persistence checks"
+  ],
+  "legacyFullNativeCheck": "Uses obsolete home-button coordinates; current header checks pass"
+}

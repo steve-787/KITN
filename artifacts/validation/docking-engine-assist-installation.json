@@ -1,0 +1,24 @@
+{
+  "verifiedAt": "2026-11-15T16:08:07.5250979+01:00",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "F909420466290688B4114BAA915995173FE4B3CD01498CC7DB93F593F4FE42EC",
+  "installedMatchesBuild": true,
+  "testedMatchesBuild": true,
+  "defaultEnabled": false,
+  "maximumPredictedPushMps": 0.15,
+  "checks": [
+    "Nozzle positions and thrust relative to centre of mass and own docking port",
+    "Balanced aft engines only; inactive, front, side, reversed and unknown engines rejected",
+    "Minimum throttle, hardware minimum burn and native cutoff",
+    "Alignment, rotation, minimum impulse, lateral drift and RCS braking guards",
+    "Actual coupled Update issues one-frame engine pulse and suppresses duplicate forward RCS",
+    "RCS braking and Stop remain effective",
+    "Default-off setting persists and checkbox works in English and German",
+    "Localized fallback reasons",
+    "Docking, rendezvous, clearance, RCS and overlay regressions",
+    "Header and minimized-widget regressions",
+    "git diff --check"
+  ],
+  "liveEngineAssistFlightVerified": false,
+  "screenshotNote": "settings-Docking-en-US.png is an isolated native settings-control harness, without the app shell/theme."
+}

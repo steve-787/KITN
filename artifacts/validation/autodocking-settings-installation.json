@@ -1,0 +1,17 @@
+{
+  "verifiedAt": "2026-11-15T02:56:30.8543167+01:00",
+  "source": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installed": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "5237C022BDA336F1BD6B906413BB92C2834F04BE72ECA3D8E4380A30183B3735",
+  "buildWarnings": 0,
+  "buildErrors": 0,
+  "checks": [
+    "Rendezvous and Docking diagnostics",
+    "Native automatic port and roll alignment",
+    "Native roll-retention and alignment-before-translation",
+    "EN/DE settings UI, persistence and active locking",
+    "Native rendezvous continuation",
+    "RCS damping and Earth atmosphere restrictions"
+  ],
+  "liveFlightChecked": false
+}

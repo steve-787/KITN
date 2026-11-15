@@ -62,11 +62,18 @@ namespace KITN
                         continue;
                     }
                     restartable = true;
-                    if (liquid.Mix == null || liquid.FeedTanks == null) { valid = false; continue; }
+                    if (liquid.Mix == null) { valid = false; continue; }
+                    // FeedTanks contains local feed bindings only. KSA actually consumes from
+                    // the resource manager's graph, including tanks reached through connectors
+                    // and the selected same-stage/cross-stage flow rule.
+                    var manager = liquid.ResourceManager;
+                    if (manager == null || !manager.ConsumptionOrder.IsValid) { valid = false; continue; }
                     if (!groups.TryGetValue(liquid.Mix, out HashSet<Tank> tanks))
                         groups[liquid.Mix] = tanks = new HashSet<Tank>();
-                    foreach (Tank tank in liquid.FeedTanks)
-                        if (tank.PropellantUseEnabled) { tanks.Add(tank); allTanks.Add(tank); }
+                    var order = manager.ConsumptionOrder;
+                    for (int level = 0; level < order.LevelCount; level++)
+                        foreach (Tank tank in order[level])
+                            if (tank?.PropellantUseEnabled == true) { tanks.Add(tank); allTanks.Add(tank); }
                 }
             }
             double usableFuel = 0;

@@ -198,7 +198,7 @@ namespace KITN
             SetThrottle(vehicle, 0f);
             SetThrusterFlags(vehicle, 0);
             FlightAttitude.StopTracking(vehicle?.FlightComputer);
-            _profile.SetStatus("status.aborted");
+            _profile.SetStatus(reason == "user_abort" ? "status.aborted" : "status.failed");
             _stagingEvaluated = false;
             RecordTelemetry(vehicle, true, reason);
         }
@@ -466,6 +466,7 @@ namespace KITN
             _yawRate = controlRates.Z * FlightAttitude.RAD_TO_DEG;
             _profilePitchDeg = GravityTurnController.ProfilePitch(altitudeM, TurnProfile.GravityTurnStartAlt,
                 TurnProfile.GravityTurnEndAlt, TurnProfile.GravityTurnShape);
+            _profilePitchDeg = GravityTurnController.InitiateTurn(_profilePitchDeg, altitudeM, TurnProfile.GravityTurnStartAlt);
             _profilePitchDeg = GravityTurnController.LimitPitchForApoapsis(_profilePitchDeg, altitudeM,
                 apoapsisAltM, _profile.TargetApoapsisM);
             double dynamicPressure = vehicle.HasPhysicsBubble ? vehicle.ComputeDynamicPressure() : 0.0;
@@ -701,10 +702,14 @@ namespace KITN
         {
             ReadOrbitalMotion(vehicle, out double radius, out double bodyRadius, out double mu, out _);
             double pitch = FlightAttitude.Pitch(vehicle.GetPositionCci(), FlightAttitude.Forward(FlightAttitude.ControlToCci(vehicle)));
-            double throttle = OrbitInsertion.AscentThrottle(mu, bodyRadius, radius, _radialSpeed, _tangentialSpeed,
+            double throttle = AdaptiveAscentControl.Throttle(mu, bodyRadius, radius, _radialSpeed, _tangentialSpeed,
                 _profile.TargetApoapsisM, _maxThrust / Math.Max(1.0, vehicle.TotalMass), pitch,
-                _guidanceSimulationDelta, out _predictedApoapsis);
-            _throttleReason = throttle < 0.999 ? "predicted_ascent_apoapsis" : "ascent_full_thrust";
+                GravityTurnController.RateLimit(radius - bodyRadius, TurnProfile.MaxPitchRateDegS),
+                vehicle.GetSurfaceVelocityCci().Length(),
+                vehicle.HasPhysicsBubble ? vehicle.PhysicsEnvironment.AtmosphericDensity : 0,
+                vehicle.HasPhysicsBubble ? vehicle.ComputeDynamicPressure() : 0,
+                Math.Max(0, vehicle.Parent.GetAtmosphereRadius() - bodyRadius),
+                _guidanceSimulationDelta, out _predictedApoapsis, out _throttleReason);
             return (float)throttle;
         }
 
@@ -787,7 +792,7 @@ namespace KITN
         private static bool HasUsableRcs(Vehicle vehicle)
         {
             var fc = vehicle.FlightComputer;
-            return fc != null && fc.RCSMode == FlightComputerRCSMode.Enabled
+            return fc != null && RcsController.Allowed(vehicle, fc.RCSMode == FlightComputerRCSMode.Enabled)
                 && fc.RcsTorqueAuthority.Y > 0.0f && fc.RcsTorqueAuthority.Z > 0.0f;
         }
 

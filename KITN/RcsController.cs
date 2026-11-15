@@ -12,14 +12,26 @@ namespace KITN
         private float _savedRate, _savedDeadband, _requestedRate, _requestedDeadband;
         private float _writtenRate, _writtenDeadband;
 
+        public static bool Allowed(Vehicle vehicle, bool allowed)
+        {
+            if (!allowed || vehicle?.Parent == null) return false;
+            return RcsSteering.EnvironmentPermitted(allowed, vehicle.Parent.Id,
+                (vehicle.Parent as Celestial)?.BodyTemplate?.Id,
+                vehicle.GetPositionCci().Length(), vehicle.Parent.GetAtmosphereRadius());
+        }
+
         public void Update(Vehicle vehicle, bool active, bool allowed, bool transfer, bool docking = false)
         {
             FlightComputer fc = vehicle?.FlightComputer;
             if (!active || fc == null) { Restore(); return; }
-            Apply(fc, true, allowed, transfer || docking, allowed ? PointingError(vehicle, transfer) : 0);
+            allowed = Allowed(vehicle, allowed);
+            ApplyCore(fc, true, allowed, transfer || docking, allowed ? PointingError(vehicle, transfer) : 0, docking);
         }
 
         public void Apply(FlightComputer fc, bool active, bool allowed, bool transfer, double errorDeg)
+            => ApplyCore(fc, active, allowed, transfer, errorDeg, false);
+
+        private void ApplyCore(FlightComputer fc, bool active, bool allowed, bool transfer, double errorDeg, bool docking)
         {
             if (!active || fc == null) { Restore(); return; }
             if (!ReferenceEquals(fc, _computer))
@@ -37,7 +49,8 @@ namespace KITN
             fc.AngleDeadband = _requestedDeadband;
             if (permitted)
             {
-                fc.AngleDeadband = transfer ? (float)(RcsSteering.DeadbandDeg * FlightAttitude.DEG_TO_RAD)
+                fc.AngleDeadband = docking ? _requestedDeadband
+                    : transfer ? (float)(RcsSteering.DeadbandDeg * FlightAttitude.DEG_TO_RAD)
                     : Math.Max(fc.AngleDeadband, (float)(RcsSteering.DeadbandDeg * FlightAttitude.DEG_TO_RAD));
                 // Powered pitch/yaw steering remains under TVC. RCS-only axes use slower turns.
                 if (fc.TvcTorqueAuthority.Y <= 0 || fc.TvcTorqueAuthority.Z <= 0)

@@ -13,13 +13,14 @@ namespace KITN
             if (vehicle.Parent == null) { model.ErrorKey = "planning.no_physics"; return model; }
             var fc = vehicle.FlightComputer;
             model.HasFlightComputer = fc != null;
-            model.HasSteering = fc != null && fc.RCSMode == FlightComputerRCSMode.Enabled
+            bool rcsAllowed = fc != null && RcsController.Allowed(vehicle, fc.RCSMode == FlightComputerRCSMode.Enabled);
+            model.HasSteering = rcsAllowed
                 && fc.RcsTorqueAuthority.Y > 0 && fc.RcsTorqueAuthority.Z > 0;
             foreach (GimbalController gimbal in vehicle.Parts.Modules.Get<GimbalController>()) model.HasSteering = true;
             if (fc != null)
             {
-                double authority = Math.Min(fc.TvcTorqueAuthorityMax.Y + fc.RcsTorqueAuthority.Y,
-                    fc.TvcTorqueAuthorityMax.Z + fc.RcsTorqueAuthority.Z) * FlightAttitude.RAD_TO_DEG;
+                double authority = Math.Min(fc.TvcTorqueAuthorityMax.Y + (rcsAllowed ? fc.RcsTorqueAuthority.Y : 0),
+                    fc.TvcTorqueAuthorityMax.Z + (rcsAllowed ? fc.RcsTorqueAuthority.Z : 0)) * FlightAttitude.RAD_TO_DEG;
                 if (authority > 0) model.AttitudeAccelerationDegS2 = Math.Clamp(authority, 0.2, 15);
             }
             double pressure = vehicle.HasPhysicsBubble ? vehicle.PhysicsEnvironment.AtmosphericPressure : 0;

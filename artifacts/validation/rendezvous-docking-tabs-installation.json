@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-11-15T01:57:03.4702990+01:00",
+  "builtDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "523A83040DD3D86150F116E636858CC093D4716C981E2D53AB2793385D5370A8",
+  "verified": true,
+  "rootCause": "Direct PlumbedCore.FeedTanks bindings were empty although KSA ResourceManager could supply connected tanks.",
+  "correction": "Use native ConsumptionOrder, enabled tanks and mixture-limited fuel; honor same-stage and cross-stage flow.",
+  "checks": [
+    "Native remote fuel and oxidizer tanks with empty direct bindings and burn cache: exact delta-v and complete rendezvous solution",
+    "Missing or disabled fuel/oxidizer and prohibited cross-stage flow are rejected",
+    "Shared landing propulsion reader retains the correct fuel and delta-v budget",
+    "Native finite departure/braking, owned nodes, stop/control restoration, warp, attitude and ignition checks passed",
+    "Separate Rendezvous and Docking tabs, target selection, both port selectors and enabled/disabled top actions passed in EN/DE at both widths",
+    "Specific missing delta-v message remains red and global stop stays available in Settings",
+    "All topbar modes, Settings/X and minimized widget regressions passed",
+    "Rendezvous, Docking, Landing simulations and localization catalogs passed",
+    "Release build: 0 warnings, 0 errors"
+  ]
+}

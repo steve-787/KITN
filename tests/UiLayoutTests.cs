@@ -95,4 +95,27 @@ internal static class UiLayoutTests
                 "Autosave destroys an unreadable or newer layout file");
         }
     }
+
+    public static void DetachedPersistence()
+    {
+        string path = NewPath();
+        var store = new UiLayoutStore(path);
+        Check(store.Load() && !store.DetachedWindows, "Existing installations should start with in-game windows");
+        var desktop = new UiWindowBounds { X = -1800, Y = 150, Width = 900, Height = 700, InterfaceScale = 1 };
+        store.Record("autopilot", MainBounds(), 0);
+        store.Record("autopilot_detached", desktop, 0);
+        Check(store.SetDetachedWindows(true, 0) && store.Flush(500) == UiLayoutSaveResult.Saved, "Detach preference was not saved");
+        var reload = new UiLayoutStore(path);
+        Check(reload.Load() && reload.DetachedWindows && reload.Find("autopilot").Matches(MainBounds())
+            && reload.Find("autopilot_detached").Matches(desktop), "Restart loses the detach preference or one of the layouts");
+        reload.SetDetachedWindows(false, 1000);
+        Check(reload.Flush(1500) == UiLayoutSaveResult.Saved && store.Load() && !store.DetachedWindows
+            && store.Find("autopilot").Matches(MainBounds()) && store.Find("autopilot_detached").Matches(desktop),
+            "Reattaching changes saved positions in either mode");
+        var scaled = desktop.FitDesktop(1.5f, -1920, 0, 1920, 1440);
+        Check(scaled.X == -1800 && scaled.Y == 150 && scaled.Width == 1350 && scaled.Height == 1050,
+            "UI scaling moves a detached window away from its desktop position");
+        var disconnected = desktop.FitDesktop(1, 0, 0, 1920, 1080);
+        Check(disconnected.X == 0 && disconnected.Y == 150, "Disconnecting a monitor leaves the window unreachable");
+    }
 }

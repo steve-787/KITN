@@ -37,9 +37,11 @@ namespace KITN
             if (request.Ejection)
             {
                 seed = Rebase(request, seed, departure, duration);
+                if (request.NestedArrival) return TransferNestedArrival.Refine(request, seed, cancellation);
                 return TransferGravityAssist.RefineEjection(request, seed, cancellation);
             }
-            return request.Refine == null ? seed : request.Refine(seed, cancellation);
+            return request.NestedArrival ? TransferNestedArrival.Refine(request, seed, cancellation)
+                : request.Refine == null ? seed : request.Refine(seed, cancellation);
         }
     }
 }

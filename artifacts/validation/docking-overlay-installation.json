@@ -1,0 +1,27 @@
+{
+  "verifiedAt": "2026-11-15T14:30:16.3049145+01:00",
+  "buildPath": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedPath": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "buildSha256": "9F9800AEA7AAA84F28C715D9BA8D0C935F61ED24EE63B9D3B5BC36243D62F326",
+  "installedSha256": "9F9800AEA7AAA84F28C715D9BA8D0C935F61ED24EE63B9D3B5BC36243D62F326",
+  "matches": true,
+  "releaseBuild": "passed; 0 warnings, 0 errors",
+  "checks": [
+    "docking forecast and overlay geometry",
+    "English/German catalog and settings persistence",
+    "native camera projection and live toggle",
+    "automatic docking connection and recovery",
+    "rendezvous controls and continuation",
+    "header and independent minimized placement",
+    "Earth-atmosphere RCS prohibition"
+  ],
+  "forecastUpdateHz": 5,
+  "maximumPredictionSteps": 2048,
+  "maximumRoutePoints": 96,
+  "maximumWireSegments": 320,
+  "forecastAndGeometryBenchmarkMs": 0.804,
+  "forecastAndGeometryAllocatedBytesPerUpdate": 0,
+  "liveFlightVerified": false,
+  "liveGameFpsMeasured": false,
+  "requiresGameRestart": true
+}

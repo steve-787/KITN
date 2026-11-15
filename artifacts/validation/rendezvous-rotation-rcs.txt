@@ -1,0 +1,7 @@
+[KITN] 2026-11-15T02:34:09.5182582+01:00 [INFO] [CONTROL_API] manual_inputs=True throttle=True engine_on=True thruster_flags=True attitude_control=native_custom_target
+PASS RCS permission covers transfers and corrections and restores vehicle settings
+  RCS inertia=1000: impulse 104,7 → 52,2 Nms, coast=74,7s
+  RCS inertia=10000: impulse 643,8 → 520,3 Nms, coast=27,6s
+PASS native inertia-aware RCS turns coast, brake, settle and use less impulse
+PASS logged RCS approach spin: stale Euler values become zero commanded rate; native control brakes all axes and uses no rotational impulse at rest
+PASS native Earth atmosphere RCS block covers ascent, reentry, transfers and docking, restores permission in space and preserves manual settings

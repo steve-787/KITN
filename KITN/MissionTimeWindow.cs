@@ -31,7 +31,7 @@ namespace KITN
             IsChromeVisible = Settings?.AutoHideInstrumentFrame != true || hover
                 || (Layout?.IsInteracting == true && ImGui.IsMouseDown(ImGuiMouseButton.Left));
             if (!ModWindowStyle.Begin("KITNMissionTime", L10n.Get("window.instruments"), ref open, size, condition,
-                !IsChromeVisible, true)) return null;
+                !IsChromeVisible, true, detached: Layout?.Detached == true)) return null;
             try
             {
                 IsVisible = true;
@@ -81,7 +81,9 @@ namespace KITN
                         }
                         finally { ImGui.EndDisabled(); }
                     }
-                    else if (IsChromeVisible) ImGui.TextColored(GameUiColors.Muted,
+                    else if (IsChromeVisible) ImGui.TextColored(GameUiColors.Message(clock.Mode == MissionClock.ClockMode.Flight
+                            && MessageSeverity.IsError(landing != null && (landing.IsActive || landing.State == LandingState.Landed || landing.State == LandingState.Aborted)
+                                ? landing.MessageKey : profile.StatusKey)),
                         hasAltitude && flight.AltitudeBodyName != "—" ? flight.AltitudeBodyName + " · " + status : status);
                     if (IsChromeVisible) ModWindowStyle.Hint(L10n.Get("settings.alignment_hint"));
                 }
