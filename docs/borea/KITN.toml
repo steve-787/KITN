@@ -1,16 +1,15 @@
-# Prepared for KSAModding/content-index/listings/KITN.toml.
-# Before submission: add the required KITN Ahwoo forum thread under [links].
+# Listing for KSAModding/content-index/listings/KITN.toml.
 spec_version = 1
 id = "KITN"
 type = "mod"
-name = "KITN — Kitten Intelligent Trajectory Navigator"
+name = "KITN"
 authors = ["steve-787"]
 abstract = "Automatic ascent, transfer planning, rendezvous, docking and landing for Kitten Space Agency."
 license = "GPL-3.0-only"
 tags = ["gameplay", "user-interface"]
 
 description = '''
-Pick a target orbit and start KITN to automate your flight.
+Kitten Intelligent Trajectory Navigator. Pick a target orbit and start KITN to automate your flight.
 
 - Ascent guidance, gravity turns and staging.
 - Transfer planning and maneuver execution.
@@ -18,14 +17,14 @@ Pick a target orbit and start KITN to automate your flight.
 - Return-to-pad landing.
 - Flight instruments and remote vessel control.
 
-Active development. Save your game before flying.
+Updated regularly and still in development. Absolutely not stable right now. Save your game before flying.
 '''
 
 [links]
 homepage = "https://github.com/steve-787/KITN"
 sourcecode = "https://github.com/steve-787/KITN"
 bugtracker = "https://github.com/steve-787/KITN/issues"
-# forums = "<required: the KITN thread on https://forums.ahwoo.com/>"
+forums = "https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/kitn-autopilot-for-kitten-space-agency.1683/"
 
 [releases]
 github = "steve-787/KITN"
