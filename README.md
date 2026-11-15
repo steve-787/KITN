@@ -1,10 +1,10 @@
+![Kitten Intelligent Trajectory Navigator](docs/artwork/kitn-banner-02-dark.png)
+
 # KITN
 
 Kitten Intelligent Trajectory Navigator. A mod for Kitten Space Agency that flies your rocket into orbit.
 
-Pick a target orbit and press start. KITN handles throttle, pitch and staging through the ascent and the circularization burn. It can also bring a booster back from orbit and set it down on a launch pad.
-
-The windows use the game's own fonts and widgets.
+Pick a target orbit and press start. KITN handles ascent, circularization, transfers, docking and landing using the game's own fonts and widgets.
 
 ## Status
 
@@ -39,32 +39,19 @@ To install from a source checkout instead:
 
 The script builds the project, copies the mod and licenses into the mods folder, registers KITN in `manifest.toml`, and downloads `StarMap.exe` into the game folder if it is not there yet. Pass `-KSAPath` if the game is installed elsewhere.
 
-## Using KITN
+## Features
 
 Start the game through `StarMap.exe`, not the normal shortcut. KITN appears only in a loaded flight with a controlled rocket, and stays hidden in the main menu and the vehicle builder.
 
-The launcher has one tile per mode:
+- **Ascent:** target orbits, gravity turns, countdowns and automatic staging.
+- **Transfers:** Porkchop plots, Hohmann planning and maneuver execution.
+- **Rendezvous and docking:** automated approaches and port alignment.
+- **Landing:** return from Earth orbit to a launch pad.
+- **Widgets:** retro mission instruments and remote vessel control.
+- **Customization:** presets, saved layouts and detachable desktop windows.
+- **Diagnostics:** flight readouts, logs and telemetry.
 
-- Flight shows the predicted trajectory and the current flight state.
-- Flight Plan sets the target orbit, the gravity turn and the countdown.
-- Automation handles staging and time warp.
-- Rendezvous approaches another vehicle that orbits the same body.
-- Docking docks with a selected port.
-- Landing brings the controlled vehicle back from Earth orbit to a launch pad.
-- Maneuvers plans a transfer to another moon or planet.
-- Diagnostics holds the flight readouts, telemetry and log controls.
-
-Settings, presets and window positions are saved next to the mod DLL as `flight_presets.json` and `ui_layout.json`.
-
-In Mod Settings, **Detach windows** opens KITN and its widgets as desktop windows that can be moved outside the game. In-game and desktop positions and sizes are saved separately; switching it off restores the previous in-game layout. The toggle is disabled when the game starts with `-fixed-viewport`.
-
-Enable the **Remote Control** widget in Mod Settings to select another simulated, controllable vessel. The main window names the vessel its controls affect and follows the player vessel when you switch craft. Each vessel keeps its own operation, flight plan, mission clock and docking path overlay. Remote operations pause while simulation or control is unavailable and resume when it returns; the widget also lists paused operations with a cancel button. Hiding the widget preserves operations. Disabling **Allow remote control** cancels automation on other vessels. KSA imposes no distance limit on vessel control: the approximately 2.097 km recommended physics-bubble radius is a clustering/precision threshold. Separate bubbles do not block remote control or docking; KITN's automatic docking approach starts within 2 km.
-
-**Allow physics warp during automation** permits manual warp up to 4× during docking, ascent and landing, reducing to 2× for final approaches. KITN lowers the speed when physics falls behind or simulation steps exceed the control budget. This setting defaults to off; timed maneuver ignition retains its normal safety limits.
-
-Transfer maneuvers are checked against Kitten Space Agency's own trajectory prediction before the node is created. If the prediction says the burn will not reach the target, KITN refuses it and tells you why.
-
-In **Maneuvers**, select **Hohmann** for a transfer seeded by MechJeb's Hohmann flight time and departure phase. KITN corrects the solution for the actual orbits and finite burns using its MechJeb-derived Lambert solver. Open **Hohmann settings** to set departure lead time (default 300 seconds), synodic windows to search (default 1), flight-time tolerance around the Hohmann estimate (default ±20%), estimated capture cost and automatic warp. These settings are saved in `ui_layout.json`. Arrival periapsis remains adjustable for each target. Create or execute the departure node, then plan capture after the target encounter is confirmed. Co-orbital and counter-rotating orbit pairs require another planning mode.
+Enable widgets and optional physics warp in Mod Settings. Settings and layouts are saved next to the mod DLL.
 
 ## Logs
 
@@ -115,12 +102,6 @@ The release guide in [docs/releasing.md](docs/releasing.md) covers the build ref
 - `docs/` release guide
 - `tools/` packaging and icon scripts
 - `install.ps1` installer and updater
-
-## Known limits
-
-- The route preview and the landing path are estimates. The drag and the final approach numbers need tuning against real flights.
-- The rocket needs a flight computer and steering. Without them, or without a route that reaches the target orbit, the launch stays blocked and the window tells you why.
-- A full return from Earth orbit has not been flown through in the real game physics yet.
 
 ## License
 

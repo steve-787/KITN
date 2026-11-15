@@ -1,0 +1,18 @@
+{
+  "dimensions": [
+    3200,
+    1600
+  ],
+  "label": "Kitten Intelligent Trajectory Navigator",
+  "method": "Raster composition of fresh native UI captures; no AI-generated UI.",
+  "capture_date": "2026-11-15",
+  "screens": [
+    "ascent",
+    "porkchop",
+    "docking",
+    "mission-control-retro",
+    "remote-control"
+  ],
+  "icon": "KITN/Assets/Icons/cat.svg (Lucide, ISC)",
+  "wordmark": "Bahnschrift, weight 600, outlined KITN with 13 px tracking at a 100 px em."
+}
