@@ -1,8 +1,15 @@
+<h1 align="center">KITN</h1>
+
+<div align="center">
+
+[![Stars](https://shieldcn.dev/github/stars/steve-787/KITN.svg)](https://github.com/steve-787/KITN/stargazers)
+[![License](https://shieldcn.dev/github/license/steve-787/KITN.svg)](https://github.com/steve-787/KITN/blob/main/LICENSE)
+
+</div>
+
 ![Kitten Intelligent Trajectory Navigator](docs/artwork/kitn-banner-02-dark.png)
 
-# KITN
-
-Kitten Intelligent Trajectory Navigator. A mod for Kitten Space Agency that flies your rocket into orbit.
+An autopilot mod for Kitten Space Agency.
 
 Pick a target orbit and press start. KITN handles ascent, circularization, transfers, docking and landing using the game's own fonts and widgets.
 
