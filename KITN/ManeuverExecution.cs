@@ -92,6 +92,8 @@ namespace KITN
             }
         }
 
+        internal void ResumeAfterPhysicsPause() { _settledSince = double.NaN; }
+
         private void UpdateDeparture(Vehicle vehicle, double now, bool allowRcs)
         {
             if (!ReferenceEquals(vehicle, _executingVehicle) || !vehicle.IsControllable)

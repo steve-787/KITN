@@ -60,6 +60,17 @@ namespace KITN
         private float3 _minimumDeltaV;
         private static readonly FieldInfo ManualInputs = typeof(Vehicle).GetField("_manualControlInputs", BindingFlags.Instance | BindingFlags.NonPublic);
 
+        internal bool RequiresTargetPhysics => IsActive && (!_rendezvousRunning || _rendezvousLocal);
+
+        internal void ResumeAfterPhysicsPause(double now)
+        {
+            _lastTime = now; _settledSince = _dockingBlockedSince = double.NaN;
+            _rendezvousSettled = double.NaN; _rendezvousPredictionStarted = 0;
+            _dockingRecovery.Reset(); _translationPulses.Reset();
+            ResetEngineAssist();
+            if (double.IsFinite(_dockCommandSentAt)) _dockCommandSentAt = now;
+        }
+
         public void SelectTarget(Vehicle target)
         {
             if (IsActive || ReferenceEquals(target, Target)) return;
@@ -202,7 +213,7 @@ namespace KITN
             _savedThrust = fc.ManualThrustMode; _savedAttitudeMode = fc.AttitudeMode;
             _savedRcs = fc.RCSMode;
             _savedTrack = fc.AttitudeTrackTarget; _savedFrame = fc.AttitudeFrame; _savedCustom = fc.CustomAttitudeTarget;
-            Universe.AutoWarpStop(true); if (Universe.SimulationSpeed > 1) Universe.SetSimulationSpeed(1, false);
+            PhysicsWarp.LimitForControl(vehicle, !_matching && Distance < 5);
             Universe.SetTarget(vehicle, Target, TargetPort?.Parent.FullPart);
             fc.SetManualThrustMode(FlightComputerManualThrustMode.Pulse);
             if (match) FlightAttitude.StopTracking(fc);
@@ -246,7 +257,7 @@ namespace KITN
             if (now <= _lastTime) return;
             double simulationStep = now - _lastTime;
             _lastTime = now;
-            Universe.AutoWarpStop(true); if (Universe.SimulationSpeed > 1) Universe.SetSimulationSpeed(1, false);
+            PhysicsWarp.LimitForControl(vehicle, !_matching && Distance < 5);
             var fc = vehicle.FlightComputer;
             double3 desiredLocal = double3.Zero;
             double engineThrottle = 0;

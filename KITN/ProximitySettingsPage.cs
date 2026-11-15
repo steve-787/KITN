@@ -92,7 +92,7 @@ namespace KITN
             try
             {
                 string format = integer || high >= 50 ? "N0" : high <= 1 ? "0.00" : "0.0";
-                ConsoleWidgets.SliderFloat(key.AsSpan(), ref value, low, high, (value.ToString(format, L10n.Culture) + " " + unit).AsSpan(), false);
+                SettingsSlider.Float(key, ref value, low, high, format, unit);
                 return value;
             }
             finally { ConsoleWidgets.EndRow(); }

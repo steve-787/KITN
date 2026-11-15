@@ -58,6 +58,10 @@ Settings, presets and window positions are saved next to the mod DLL as `flight_
 
 In Mod Settings, **Detach windows** opens KITN and its widgets as desktop windows that can be moved outside the game. In-game and desktop positions and sizes are saved separately; switching it off restores the previous in-game layout. The toggle is disabled when the game starts with `-fixed-viewport`.
 
+Enable the **Remote Control** widget in Mod Settings to select another controllable vessel in the same physics bubble. The main window names the vessel its controls affect and follows the player vessel when you switch craft. Each vessel keeps its own operation, flight plan, mission clock and docking path overlay. Remote operations pause outside physics range or while control is unavailable and resume on return; the widget also lists paused operations with a cancel button. Hiding the widget preserves operations. Disabling **Allow remote control** cancels automation on other vessels.
+
+**Allow physics warp during automation** permits manual warp up to 4× during docking, ascent and landing, reducing to 2× for final approaches. KITN lowers the speed when physics falls behind or simulation steps exceed the control budget. This setting defaults to off; timed maneuver ignition retains its normal safety limits.
+
 Transfer maneuvers are checked against Kitten Space Agency's own trajectory prediction before the node is created. If the prediction says the burn will not reach the target, KITN refuses it and tells you why.
 
 ## Logs

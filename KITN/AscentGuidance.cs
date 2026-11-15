@@ -100,6 +100,13 @@ namespace KITN
             EnsureReflection();
         }
 
+        internal void ResumeAfterPhysicsPause()
+        {
+            _haveGuidanceSimulationTime = false;
+            _alignmentWaitSince = double.NaN;
+            _throttleActuator.Reset();
+        }
+
         private static void EnsureReflection()
         {
             if (_reflectionInitialized) return;

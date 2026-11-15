@@ -459,7 +459,7 @@ namespace KITN
 
         private void UpdateLocalApproach(Vehicle vehicle, double now)
         {
-            Universe.AutoWarpStop(true); if (Universe.SimulationSpeed > 1) Universe.SetSimulationSpeed(1, false);
+            PhysicsWarp.LimitForControl(vehicle);
             if (!vehicle.HasPhysicsBubble || !Target.HasPhysicsBubble || !ReadAuthority(vehicle)) { FailRendezvous("rendezvous.require_physics"); return; }
             if (Distance < CollisionClearance()) { FailRendezvous("rendezvous.too_fast"); return; }
             // Translation needs no new pointing target; damp rotation in the inertial frame.

@@ -23,6 +23,8 @@ namespace KITN
         public UiTheme Theme { get; set; } = UiTheme.Retro;
         public bool AutoHideInstrumentFrame { get; set; }
         public bool AllowRcs { get; set; } = true;
+        public bool AllowRemoteControl { get; set; } = true;
+        public bool AllowPhysicsWarp { get; set; }
         public bool DetachedWindows { get; set; }
         public bool GravityAssists { get; set; }
         public LandingSettings Landing { get; set; } = new LandingSettings();
@@ -106,6 +108,8 @@ namespace KITN
         public bool MainWindowOpen { get; private set; } = true;
         public bool MissionTimeOpen => Widget("mission_time").Enabled;
         public bool AllowRcs { get; private set; } = true;
+        public bool AllowRemoteControl { get; private set; } = true;
+        public bool AllowPhysicsWarp { get; private set; }
         public bool DetachedWindows { get; private set; }
         public bool GravityAssists { get; private set; }
         public LandingSettings Landing { get; private set; } = new LandingSettings();
@@ -124,6 +128,8 @@ namespace KITN
                 UiTheme theme = UiTheme.Retro;
                 bool autoHide = false;
                 bool allowRcs = true;
+                bool allowRemote = true;
+                bool physicsWarp = false;
                 bool detachedWindows = false;
                 bool gravityAssists = false;
                 var landing = new LandingSettings();
@@ -147,6 +153,8 @@ namespace KITN
                     theme = file.Settings.Theme;
                     autoHide = file.Settings.AutoHideInstrumentFrame;
                     allowRcs = file.Settings.AllowRcs;
+                    allowRemote = file.Settings.AllowRemoteControl;
+                    physicsWarp = file.Settings.AllowPhysicsWarp;
                     detachedWindows = file.Settings.DetachedWindows;
                     gravityAssists = file.Settings.GravityAssists;
                     landing = file.Settings.Landing.Copy();
@@ -166,7 +174,7 @@ namespace KITN
                 // Migrate old theme/frame fields without changing saved window positions.
                 if (!widgets.ContainsKey("mission_time")) widgets.Add("mission_time", new UiWidgetPreferences { Theme = theme, AutoHideFrame = autoHide });
                 _widgets = widgets; MainWindowOpen = mainOpen;
-                _windows = windows; AllowRcs = allowRcs;
+                _windows = windows; AllowRcs = allowRcs; AllowRemoteControl = allowRemote; AllowPhysicsWarp = physicsWarp;
                 DetachedWindows = detachedWindows;
                 GravityAssists = gravityAssists;
                 Landing = landing;
@@ -225,6 +233,20 @@ namespace KITN
             return true;
         }
 
+        public bool SetAllowRemoteControl(bool enabled, long nowMs)
+        {
+            if (!IsLoaded || AllowRemoteControl == enabled) return false;
+            AllowRemoteControl = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
+        public bool SetAllowPhysicsWarp(bool enabled, long nowMs)
+        {
+            if (!IsLoaded || AllowPhysicsWarp == enabled) return false;
+            AllowPhysicsWarp = enabled; IsDirty = true; _lastChangeMs = nowMs;
+            return true;
+        }
+
         public bool SetGravityAssists(bool enabled, long nowMs)
         {
             if (!IsLoaded || GravityAssists == enabled) return false;
@@ -273,7 +295,7 @@ namespace KITN
                 using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     JsonSerializer.Serialize(stream, new UiLayoutDocument { Windows = _windows,
-                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, DetachedWindows = DetachedWindows, GravityAssists = GravityAssists, Landing = Landing.Copy(), Rendezvous = Rendezvous.Copy(), Docking = Docking.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
+                        Settings = new UiPreferences { Theme = Theme, AutoHideInstrumentFrame = AutoHideInstrumentFrame, AllowRcs = AllowRcs, AllowRemoteControl = AllowRemoteControl, AllowPhysicsWarp = AllowPhysicsWarp, DetachedWindows = DetachedWindows, GravityAssists = GravityAssists, Landing = Landing.Copy(), Rendezvous = Rendezvous.Copy(), Docking = Docking.Copy(), MainWindowOpen = MainWindowOpen, Widgets = _widgets } }, Json);
                     if (stream.Length > 65536) throw new InvalidDataException("UI layout file exceeds 64 KiB");
                     stream.Flush(true);
                 }

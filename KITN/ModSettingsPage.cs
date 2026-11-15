@@ -9,8 +9,8 @@ namespace KITN
     /// <summary>Scrollable categories and a data-driven widget list leave room for future preferences.</summary>
     internal sealed class ModSettingsPage
     {
-        private static readonly ModPage[] Widgets = { new ModPage(0, "settings.instruments", "timer") };
-        private static readonly string[] WidgetIds = { "mission_time" };
+        private static readonly ModPage[] Widgets = { new ModPage(0, "settings.instruments", "timer"), new ModPage(1, "remote.title", "crosshair") };
+        private static readonly string[] WidgetIds = { "mission_time", "remote_control" };
         private static readonly UiTheme[] Themes = Enum.GetValues<UiTheme>();
 
         public bool Draw(UiLayoutStore settings)
@@ -54,6 +54,22 @@ namespace KITN
                             ModWindowStyle.Hint(L10n.Get("settings.allow_rcs_hint"));
                         }
                         finally { ConsoleWidgets.EndRow(); }
+                        ConsoleWidgets.BeginRow(L10n.Get("settings.allow_remote").AsSpan());
+                        try
+                        {
+                            bool allowed = settings?.AllowRemoteControl ?? true;
+                            if (ConsoleWidgets.Checkbox("allow-remote-control".AsSpan(), ref allowed, false)) settings?.SetAllowRemoteControl(allowed, Environment.TickCount64);
+                            ModWindowStyle.Hint(L10n.Get("settings.allow_remote_hint"));
+                        }
+                        finally { ConsoleWidgets.EndRow(); }
+                        ConsoleWidgets.BeginRow(L10n.Get("settings.physics_warp").AsSpan());
+                        try
+                        {
+                            bool allowed = settings?.AllowPhysicsWarp ?? false;
+                            if (ConsoleWidgets.Checkbox("allow-physics-warp".AsSpan(), ref allowed, false)) settings?.SetAllowPhysicsWarp(allowed, Environment.TickCount64);
+                            ModWindowStyle.Hint(L10n.Get("settings.physics_warp_hint"));
+                        }
+                        finally { ConsoleWidgets.EndRow(); }
                     }
                 }
             }
@@ -94,6 +110,12 @@ namespace KITN
                 ConsoleWidgets.BeginRow(L10n.Get("settings.widget_enabled").AsSpan());
                 try { bool enabled = prefs.Enabled; changed |= ConsoleWidgets.Checkbox("widget-enabled".AsSpan(), ref enabled, false); prefs.Enabled = enabled; }
                 finally { ConsoleWidgets.EndRow(); }
+                // Remote Control shares the main window's native design.
+                if (id == "remote_control")
+                {
+                    if (changed) settings?.SetWidget(id, prefs, Environment.TickCount64);
+                    return;
+                }
                 ImGui.TextColored(GameUiColors.Muted, L10n.Get("settings.widget_theme"));
                 ImGui.SetNextItemWidth(-1);
                 if (ImGui.BeginCombo("##mod-theme", ThemeName(prefs.Theme), ImGuiComboFlags.HeightLarge))

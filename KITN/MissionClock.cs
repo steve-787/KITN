@@ -59,9 +59,27 @@ namespace KITN
             Mode = ClockMode.Flight;
         }
 
+        /// <summary>Adopts the launch time the game saves per vehicle, e.g. when loading a mission already in flight.</summary>
+        /// <returns>False for missing or inconsistent times, or when a mission is already running.</returns>
+        public bool RestoreFlight(double launchTime, double simulationTime)
+        {
+            if (HasLaunched || !double.IsFinite(launchTime) || !double.IsFinite(simulationTime)
+                || launchTime < 0 || launchTime > simulationTime) return false;
+            _epoch = _lastTime = launchTime;
+            _haveTime = HasLaunched = true;
+            Seconds = simulationTime - launchTime;
+            Mode = ClockMode.Flight;
+            return true;
+        }
+
         public void CancelCountdown()
         {
             if (IsCountingDown) Mode = ClockMode.Cancelled;
+        }
+
+        public void ResumeCountdown(double pausedSeconds)
+        {
+            if (IsCountingDown && double.IsFinite(pausedSeconds) && pausedSeconds > 0) _epoch += pausedSeconds;
         }
 
         public void OnVehicleChanged()

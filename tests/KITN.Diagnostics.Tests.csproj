@@ -11,6 +11,8 @@
     <Compile Include="FlightSimulation.cs" />
     <Compile Include="FlightDisplayTests.cs" />
     <Compile Include="MissionClockTests.cs" />
+    <Compile Include="RemoteControlSettingsTests.cs" />
+    <Compile Include="../KITN/PhysicsWarpPolicy.cs" Link="PhysicsWarpPolicy.cs" />
     <Compile Include="LandingTests.cs" />
     <Compile Include="LandingSettingsTests.cs" />
     <Compile Include="ProximitySettingsTests.cs" />

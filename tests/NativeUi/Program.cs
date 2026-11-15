@@ -100,6 +100,10 @@ internal static partial class Program
         Set(predicted, "Altitudes", new double[] { 0, 25, 60, 100, 150, 180, 197, 200 });
         Set(predicted, "MessageKey", "preview.complete");
         for (int frame = 0; frame < 3; frame++) Frame(true);
+        if (Environment.GetCommandLineArgs().Contains("--remote-control-checks"))
+        {
+            RemoteControlChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--rendezvous-checks"))
         {
             RendezvousManeuverChecks(); ((IDisposable)Window).Dispose(); ImGui.DestroyContext(); return;

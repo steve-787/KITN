@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Collections.Generic;
 using StarMap.API;
 using StarMap.API.Services;
 using KSA;
@@ -11,31 +12,29 @@ namespace KITN
     [StarMapMod]
     public class KITNMain
     {
-        private LaunchProfile _profile;
-        private StagingController _staging;
-        private AscentGuidance _guidance;
+        private RemoteControlFleet _fleet;
+        private LaunchProfile _profile => _fleet?.Selected.Profile;
+        private AscentGuidance _guidance => _fleet?.Selected.Guidance;
         private bool _windowOpen = true;
-        private Vehicle _lastControlledVehicle;
-        private bool _vehicleObserved;
+        private Vehicle _requestedVehicle;
         private readonly IPatchService _patches;
         private IDisposable _physicsHook;
         private double _playerTime;
         private long _physicsHookCalls;
-        private string _pendingAction;
-        private readonly FlightDisplay _flightDisplay = new FlightDisplay();
+        private string _pendingAction { get => _fleet.Selected.PendingAction; set => _fleet.Selected.PendingAction = value; }
+        private FlightDisplay _flightDisplay => _fleet.Selected.Flight;
         private readonly AutopilotWindow _window = new AutopilotWindow();
         private MinimizedWindow _minimizedWindow;
-        private readonly MissionClock _missionClock = new MissionClock();
+        private MissionClock _missionClock => _fleet.Selected.Clock;
         private readonly MissionTimeWindow _missionTimeWindow = new MissionTimeWindow();
         private MissionAltitudeDisplay _missionAltitude;
-        private readonly LandingController _landing = new LandingController();
-        private readonly ManeuverPlanner _planner = new ManeuverPlanner();
-        private readonly RcsController _rcs = new RcsController();
-        private readonly RendezvousController _rendezvous = new RendezvousController();
+        private LandingController _landing => _fleet.Selected.Landing;
+        private ManeuverPlanner _planner => _fleet.Selected.Planner;
+        private RendezvousController _rendezvous => _fleet.Selected.Rendezvous;
         private readonly DockingGuidanceOverlay _dockingOverlay = new DockingGuidanceOverlay();
+        private readonly RemoteControlWindow _remoteWindow = new RemoteControlWindow();
         private UiLayoutStore _uiLayout;
         private bool _missionTimeOpen;
-        private IParentBody _countdownParent;
 
         public KITNMain(IPatchService patches)
         {
@@ -48,13 +47,14 @@ namespace KITN
             Diag.Init();
             GameLocalization.Refresh();
             Diag.DumpApi();
-            _profile = new LaunchProfile();
             string modDirectory = Path.GetDirectoryName(typeof(KITNMain).Assembly.Location) ?? ".";
             _uiLayout = new UiLayoutStore(Path.Combine(modDirectory, "ui_layout.json"));
             if (_uiLayout.Load()) Diag.Info("UI_LAYOUT", $"event=loaded windows={_uiLayout.WindowCount}");
             else Diag.Error("UI_LAYOUT", _uiLayout.LastError, "Loading window positions failed; using the default layout and preserving the file");
+            _fleet = new RemoteControlFleet(_uiLayout);
             _window.Layout = new PersistentWindowLayout(_uiLayout, "autopilot");
             _missionTimeWindow.Layout = new PersistentWindowLayout(_uiLayout, "mission_time");
+            _remoteWindow.Layout = new PersistentWindowLayout(_uiLayout, "remote_control");
             _minimizedWindow = new MinimizedWindow(_uiLayout);
             _minimizedWindow.Peer = _missionTimeWindow.Layout;
             _window.Settings = _missionTimeWindow.Settings = _uiLayout;
@@ -82,10 +82,6 @@ namespace KITN
             if (presets.Load()) Diag.Info("PRESET", $"event=loaded count={presets.Presets.Count}");
             else Diag.Error("PRESET", presets.LastError, "Loading saved flight plans failed; the file is preserved");
 
-            // Korrigiert: StagingController ist eine Klasse und muss mit 'new' instanziiert werden
-            _staging = new StagingController(_profile);
-
-            _guidance = new AscentGuidance(_profile, _staging);
             try
             {
                 MethodInfo target = typeof(Universe).GetMethod(nameof(Universe.ProcessAutoWarp),
@@ -126,8 +122,36 @@ namespace KITN
             _physicsHookCalls++;
             if (_physicsHookCalls == 1)
                 Diag.Info("CONTROL_HOOK", "event=first_guidance_callback execution=before_physics_snapshot");
-            Vehicle vehicle = Program.ControlledVehicle;
-            ObserveVehicle(vehicle);
+            double now = Universe.GetElapsedSeconds();
+            PhysicsWarp.Configure(_uiLayout.AllowPhysicsWarp, dtPlayer);
+            var vessels = new List<Vehicle>();
+            if (Universe.CurrentSystem != null)
+                foreach (var vessel in Universe.CurrentSystem.All.OfType<Vehicle>()) vessels.Add(vessel);
+            _fleet.Observe(Program.ControlledVehicle, vessels, _uiLayout.AllowRemoteControl, Universe.CurrentSystem, now);
+            if (_requestedVehicle != null) { _fleet.Select(_requestedVehicle); _requestedVehicle = null; }
+            foreach (var session in _fleet.Sessions)
+            {
+                if (session.HandleCancellation()) continue;
+                if (session.IsSuspended || (!_fleet.AllowRemote && !ReferenceEquals(session.Vehicle, Program.ControlledVehicle))) continue;
+                if (session.Guidance.IsActive && session.Guidance.CurrentState != AscentGuidance.AscentState.CoastToApoapsis
+                    || session.Landing.IsActive && session.Landing.State != LandingState.WaitingForReturn
+                    || session.Rendezvous.RequiresTargetPhysics)
+                    PhysicsWarp.LimitForControl(session.Vehicle, session.Rendezvous.IsAutoDocking && session.Rendezvous.Distance < 5);
+                if (!ReferenceEquals(session, _fleet.Selected) && !session.IsActive && !session.Planner.IsSearching
+                    && !session.Planner.IsChecking && session.PendingAction == null) continue;
+                UpdateVehicle(session, dtPlayer);
+            }
+            return true;
+        }
+
+        private void UpdateVehicle(VesselControlSession session, double dtPlayer)
+        {
+            Vehicle vehicle = session.Vehicle;
+            var _profile = session.Profile; var _guidance = session.Guidance;
+            var _flightDisplay = session.Flight; var _landing = session.Landing;
+            var _rendezvous = session.Rendezvous; var _planner = session.Planner;
+            var _missionClock = session.Clock;
+            string pendingAction = session.PendingAction;
             bool allowRcs = RcsController.Allowed(vehicle, _uiLayout.AllowRcs);
             try { _rendezvous.Refresh(vehicle, allowRcs); }
             catch (Exception ex)
@@ -141,7 +165,7 @@ namespace KITN
                 Diag.EveryError("landing_availability", 5, "LANDING", ex, "Reading landing availability failed");
                 if (_landing.IsActive) _landing.Abort(vehicle, "landing_availability_exception", "landing.failed");
             }
-            string action = _pendingAction;
+            string action = pendingAction;
             if (!_guidance.IsActive && !_landing.IsActive && !_rendezvous.IsActive && _guidance.CurrentState == AscentGuidance.AscentState.Idle)
                 _flightDisplay.RefreshLaunchPlan(vehicle, _profile, action == "countdown");
             double simulationTime = Universe.GetElapsedSeconds();
@@ -155,7 +179,7 @@ namespace KITN
             }
             catch (Exception ex) { Diag.EveryError("transfer_refresh", 5, "TRANSFER", ex, "Reading transfer planner state failed"); }
             bool blockedCountdown = action == "cancel_countdown" || action == "abort" || action == "reset";
-            if (_missionClock.IsCountingDown && (vehicle == null || !ReferenceEquals(vehicle.Parent, _countdownParent)))
+            if (_missionClock.IsCountingDown && (vehicle == null || !ReferenceEquals(vehicle.Parent, session.CountdownParent)))
             {
                 _missionClock.CancelCountdown();
                 Diag.Info("COUNTDOWN", "event=cancelled reason=vehicle_or_parent_changed");
@@ -179,7 +203,7 @@ namespace KITN
                                     break;
                                 }
                                 _missionClock.BeginCountdown(_profile.LaunchCountdownSeconds, simulationTime);
-                                _countdownParent = vehicle.Parent;
+                                session.CountdownParent = vehicle.Parent;
                                 Diag.Info("COUNTDOWN", $"event=started duration_s={_profile.LaunchCountdownSeconds} vehicle=\"{vehicle.Id}\"");
                             }
                             break;
@@ -198,6 +222,7 @@ namespace KITN
                                 break;
                             }
                             _landing.Reset(vehicle);
+                            PhysicsWarp.LimitForControl(vehicle);
                             _guidance.Start(_flightDisplay.LaunchPlan.Settings);
                             _missionClock.MarkLaunched(simulationTime);
                             Diag.Info("COUNTDOWN", "event=launch time=T+00:00:00");
@@ -218,8 +243,8 @@ namespace KITN
                             break;
                         case "landing_abort": if (_landing.IsActive) _landing.Abort(vehicle); break;
                     }
-                    _pendingAction = null;
-                    UpdateRcs(vehicle);
+                    session.PendingAction = null;
+                    UpdateRcs(session);
                     _landing.Update(vehicle, simulationTime, dtPlayer);
                     _guidance.LandingDebug = _landing.Telemetry(_missionClock);
                     _guidance.Update(vehicle, _playerTime + dtPlayer, dtPlayer);
@@ -236,33 +261,15 @@ namespace KITN
                     _rendezvous.StopWithFailure(ex.Message);
                     _planner.HandleAction("transfer_stop", vehicle, false);
                 }
-                finally { UpdateRcs(vehicle); }
+                finally { UpdateRcs(session); }
             }
             else
             {
-                _pendingAction = null;
-                _rcs.Restore();
+                session.PendingAction = null;
+                session.Rcs.Restore();
             }
             if (_guidance != null)
                 _flightDisplay.Update(vehicle, _profile, _guidance, action);
-            return true;
-        }
-
-        private void ObserveVehicle(Vehicle vehicle)
-        {
-            if (!_vehicleObserved || !ReferenceEquals(vehicle, _lastControlledVehicle))
-            {
-                if (_vehicleObserved) _pendingAction = null;
-                if (_lastControlledVehicle != null && _guidance != null && _guidance.IsActive)
-                    _guidance.Abort(_lastControlledVehicle, "controlled_vehicle_changed");
-                _rendezvous.Stop(_rendezvous.IsDockedToTarget);
-                _rcs.Restore();
-                Diag.Info("VEHICLE", $"previous=\"{_lastControlledVehicle?.Id ?? "none"}\" current=\"{vehicle?.Id ?? "none"}\" state={_guidance?.CurrentState}");
-                _lastControlledVehicle = vehicle;
-                _vehicleObserved = true;
-                _missionClock.OnVehicleChanged();
-                _countdownParent = null;
-            }
         }
 
         [StarMapAfterGui]
@@ -274,6 +281,7 @@ namespace KITN
             {
                 _window.OnVisibilityChanged(false);
                 _window.Layout.Enabled = _missionTimeWindow.Layout.Enabled = false;
+                _remoteWindow.Layout.Enabled = false;
                 _minimizedWindow.Enabled = false;
                 _missionAltitude?.Release();
                 SaveUiLayout();
@@ -281,12 +289,19 @@ namespace KITN
             }
             _missionTimeOpen = _uiLayout.MissionTimeOpen;
             bool windowWasOpen = _windowOpen, timerWasOpen = _missionTimeOpen;
-            try { _dockingOverlay.Draw(_rendezvous); }
+            try
+            {
+                foreach (var session in _fleet.Sessions)
+                    if (session.Vehicle.HasPhysicsBubble && session.Rendezvous.Target?.HasPhysicsBubble == true)
+                        _dockingOverlay.Draw(session.Rendezvous);
+            }
             catch (Exception ex) { Diag.EveryError("docking_overlay", 5, "UI", ex, "Drawing docking guidance failed"); }
             bool timerDrawn = false;
             _window.Layout.Enabled = _windowOpen;
             _minimizedWindow.Enabled = !_windowOpen;
             _missionTimeWindow.Layout.Enabled = _missionTimeOpen;
+            _window.Planner = _planner; _window.Rendezvous = _rendezvous;
+            _window.ControlSession = _fleet.Selected;
             try
             {
                 if (_windowOpen)
@@ -311,6 +326,17 @@ namespace KITN
                         _profile, _guidance.CurrentState, _pendingAction != null, _landing, _flightDisplay);
                     timerDrawn = _missionTimeWindow.IsVisible;
                     if (_pendingAction == null && action != null) _pendingAction = action;
+                }
+                bool remoteOpen = _uiLayout.Widget("remote_control").Enabled;
+                _remoteWindow.Layout.Enabled = remoteOpen;
+                _remoteWindow.Layout.Peer = _windowOpen ? _window.Layout : _minimizedWindow.Layout;
+                if (remoteOpen)
+                {
+                    Vehicle selected = _remoteWindow.Draw(ref remoteOpen, _fleet, Program.ControlledVehicle);
+                    if (selected != null) _requestedVehicle = selected;
+                    var preferences = _uiLayout.Widget("remote_control"); preferences.Enabled = remoteOpen;
+                    _uiLayout.SetWidget("remote_control", preferences, Environment.TickCount64);
+                    _remoteWindow.Layout.Enabled = remoteOpen;
                 }
             }
             catch (Exception ex)
@@ -347,24 +373,19 @@ namespace KITN
         [StarMapUnload]
         public void Unload()
         {
-            if (_lastControlledVehicle != null && _guidance != null && _guidance.IsActive)
-                _guidance.Abort(_lastControlledVehicle, "mod_unload");
-            if (_landing.IsActive) _landing.Abort(_lastControlledVehicle, "mod_unload");
             _physicsHook?.Dispose();
             _physicsHook = null;
             _missionAltitude?.Dispose();
-            _missionClock.Stop();
             SaveUiLayout(true);
-            _flightDisplay.CancelPlanning();
-            _planner.Dispose();
-            _rendezvous.Stop();
-            _rcs.Restore();
+            _fleet?.Dispose();
             _window.Dispose();
             Diag.Shutdown();
         }
 
-        private void UpdateRcs(Vehicle vehicle)
+        private void UpdateRcs(VesselControlSession session)
         {
+            var vehicle = session.Vehicle; var _rcs = session.Rcs; var _guidance = session.Guidance;
+            var _landing = session.Landing; var _planner = session.Planner; var _rendezvous = session.Rendezvous;
             try
             {
                 _rcs.Update(vehicle, _guidance.IsActive || _landing.IsActive || _planner.IsExecuting || _rendezvous.IsActive,

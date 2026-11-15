@@ -48,8 +48,7 @@ namespace KITN
             ConsoleWidgets.BeginRow(L10n.Get(key).AsSpan());
             try
             {
-                ConsoleWidgets.SliderFloat(key.AsSpan(), ref value, low, high,
-                    value.ToString(high > 100 ? "N0" : "0.0", L10n.Culture).AsSpan(), false);
+                SettingsSlider.Float(key, ref value, low, high, high > 100 ? "N0" : "0.0");
                 return value;
             }
             finally { ConsoleWidgets.EndRow(); }

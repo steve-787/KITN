@@ -77,6 +77,25 @@ internal static class MissionClockTests
         Check(!clock.Advance(900) && !clock.Advance(2000), "Reverted countdown later launched");
     }
 
+    public static void Restore()
+    {
+        var clock = new MissionClock();
+        Check(clock.RestoreFlight(100, 250) && clock.Mode == MissionClock.ClockMode.Flight
+            && clock.Display == "T+00:02:30", "A saved launch time did not restore mission time");
+        clock.Advance(400);
+        Check(clock.Display == "T+00:05:00", "Restored mission time did not keep counting");
+        var replayed = new MissionClock();
+        Check(!replayed.RestoreFlight(200, 100) && replayed.Mode == MissionClock.ClockMode.Ready,
+            "A launch time after the saved time restored a mission");
+        Check(!replayed.RestoreFlight(double.NaN, 100) && !replayed.RestoreFlight(-5, 100),
+            "A missing or negative launch time restored a mission");
+        var started = new MissionClock();
+        started.MarkLaunched(10);
+        started.Advance(100);
+        Check(!started.RestoreFlight(5, 100) && started.Display == "T+00:01:30",
+            "A running mission clock was replaced by a saved launch time");
+    }
+
     public static void VehicleFocus()
     {
         var clock = new MissionClock();

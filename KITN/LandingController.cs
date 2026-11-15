@@ -132,9 +132,9 @@ namespace KITN
                 _propulsion.Thrust / _propulsion.MassFlow);
             _warpStarted = false; _throttle.Reset(); _attitude.Reset(); _touchdown.Reset();
             SaveSettings(vehicle.FlightComputer);
-            // Do the incremental search at normal speed so a pre-existing warp
-            // cannot carry the vehicle past the window while it is being planned.
-            RealTime();
+            // Keep the incremental search within the live-physics control budget
+            // so a pre-existing coast warp cannot skip the window while planning.
+            RealTime(vehicle);
             SetThrottle(vehicle, 0, 0, false);
             FlightAttitude.StopTracking(vehicle.FlightComputer);
             Transition(LandingState.Planning, time, "return_window_search", "landing.planning");
@@ -157,6 +157,13 @@ namespace KITN
                     model.DensitySamples[i] = Math.Max(0, atmosphere.ComputeDensityAtAltitude(i * model.DensityStep));
             }
             return model;
+        }
+
+        internal void ResumeAfterPhysicsPause(double now, double pausedSeconds)
+        {
+            _lastTime = now; _lastVelocityTime = double.NaN;
+            _throttle.Reset(); _attitude.Reset(); _touchdown.Reset();
+            if (double.IsFinite(pausedSeconds) && pausedSeconds > 0) _stateSince += pausedSeconds;
         }
 
         public void Update(Vehicle vehicle, double time, double dtPlayer)
@@ -218,7 +225,7 @@ namespace KITN
                         { Universe.AutoWarpTo(LandingReturnPlanner.Time(_plan.BurnTime - _lead)); _warpStarted = true; }
                         return;
                     }
-                    RealTime();
+                    RealTime(vehicle);
                     Point(vehicle, _plan.DeltaVelocity, 5);
                     AlignWithTvc(vehicle, dt);
                     double burnDuration = OrbitInsertion.BurnDuration(_plan.DeltaV, vehicle.TotalMass, _propulsion.Thrust, _propulsion.MassFlow);
@@ -229,8 +236,8 @@ namespace KITN
                     return;
                 }
                 if (!vehicle.HasPhysicsBubble)
-                { RealTime(); SetThrottle(vehicle, 0, dt, false); _message = new LocalizedMessage("landing.wait_physics", Array.Empty<object>()); return; }
-                RealTime();
+                { RealTime(vehicle); SetThrottle(vehicle, 0, dt, false); _message = new LocalizedMessage("landing.wait_physics", Array.Empty<object>()); return; }
+                RealTime(vehicle);
                 if (State == LandingState.DeorbitBurn)
                 {
                     if (time - _lastPrediction >= 0.75)
@@ -417,7 +424,7 @@ namespace KITN
             { _savedComputer.RateLimit = _savedRate; _savedComputer.AngleDeadband = _savedDeadband; _savedComputer.RollMode = _savedRoll; _savedComputer = null; }
         }
         private static void StopWarp() { if (Universe.IsAutoWarpActive) Universe.AutoWarpStop(true); }
-        private static void RealTime() { StopWarp(); if (Universe.SimulationSpeed > 1) Universe.SetSimulationSpeed(1.0, false); }
+        private void RealTime(Vehicle vehicle) => PhysicsWarp.LimitForControl(vehicle, Clearance < 500);
         public void Abort(Vehicle vehicle, string reason = "user_abort", string message = "landing.cancelled")
         {
             if (IsActive) Release(vehicle);

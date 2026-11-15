@@ -22,6 +22,7 @@ namespace KITN
         public UiLayoutStore Settings { get; set; }
         public ManeuverPlanner Planner { get; set; }
         public RendezvousController Rendezvous { get; set; }
+        public VesselControlSession ControlSession { get; set; }
         private readonly RendezvousPage _rendezvousPage = new RendezvousPage();
         private readonly DockingPage _dockingPage = new DockingPage();
         private readonly TransferPlannerPage _transferPage = new TransferPlannerPage();
@@ -58,7 +59,7 @@ namespace KITN
                 if (_settingsOpen)
                 {
                     PanelLayout.BeginCard("settings-controls", _diagnosticsOpen ? "tab.diagnostics" : "settings.title", _diagnosticsOpen ? "info" : "settings", controls: true);
-                    try { if (running) Actions(profile, guidance, flight, clock, hookReady, actionPending, landing); }
+                    try { ControlledVessel(flight); Actions(profile, guidance, flight, clock, hookReady, actionPending, landing); }
                     finally { PanelLayout.EndCard(); }
                     PanelLayout.BeginBody(_diagnosticsOpen ? "kitn-diagnostics" : "kitn-settings-page");
                     try
@@ -71,12 +72,9 @@ namespace KITN
                 }
                 if (_homeOpen)
                 {
-                    if (running)
-                    {
-                        PanelLayout.BeginCard("active-controls", controls: true);
-                        try { Actions(profile, guidance, flight, clock, hookReady, actionPending, landing); }
-                        finally { PanelLayout.EndCard(); }
-                    }
+                    PanelLayout.BeginCard("active-controls", controls: true);
+                    try { ControlledVessel(flight); Actions(profile, guidance, flight, clock, hookReady, actionPending, landing); }
+                    finally { PanelLayout.EndCard(); }
                     PanelLayout.BeginBody("kitn-launcher");
                     try
                     {
@@ -86,10 +84,11 @@ namespace KITN
                     finally { PanelLayout.EndBody(); }
                     return _action;
                 }
-                bool locked = running;
+                bool locked = running || ControlSession?.IsSuspended == true;
                 PanelLayout.BeginCard("page-controls", controls: true);
                 try
                 {
+                    ControlledVessel(flight);
                     if (_tab != 5)
                     {
                         bool recovery = landing != null && (_tab == 4 || landing.IsActive);
@@ -191,10 +190,20 @@ namespace KITN
             return text.Substring(0, length) + "…";
         }
 
+        private void ControlledVessel(FlightDisplay flight)
+        {
+            string name = ControlSession?.Vehicle?.Id ?? flight.VehicleName;
+            ImGui.TextColored(GameUiColors.Label, AutopilotWindow.FitHeaderText(
+                L10n.Get("remote.vessel") + " · " + name, ImGui.GetContentRegionAvail().X));
+            ModWindowStyle.Hint(name);
+            if (ControlSession?.IsSuspended == true) GameUiColors.MessageText(L10n.Get(ControlSession.SuspensionReason));
+        }
+
         private void Actions(LaunchProfile profile, AscentGuidance guidance, FlightDisplay flight, MissionClock clock,
             bool hookReady, bool pending, LandingController landing)
         {
-            ImGui.BeginDisabled(!flight.HasVehicle || !hookReady || pending);
+            ImGui.BeginDisabled((!flight.HasVehicle && ControlSession?.Vehicle == null) || !hookReady || pending
+                || ControlSession?.IsSuspended == true && !ControlSession.IsActive);
             try
             {
                 if (Rendezvous?.IsActive == true)
@@ -697,7 +706,7 @@ namespace KITN
             ConsoleWidgets.BeginRow(L10n.Get(label).AsSpan());
             try
             {
-                ConsoleWidgets.SliderFloat(label.AsSpan(), ref value, min, max, Format(value).AsSpan(), false);
+                SettingsSlider.Float(label, ref value, min, max, "N1");
                 if (explanation != null) Hint(L10n.Get(explanation));
             }
             finally { ConsoleWidgets.EndRow(); }
