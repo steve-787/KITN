@@ -137,6 +137,10 @@ def render_banners():
     screen(canvas, "porkchop", 1175, 560, 850, dark=True)
     screen(canvas, "docking", 2180, 620, 850, dark=True)
     canvas.convert("RGB").save(OUT / "kitn-banner-02-dark.png", optimize=True)
+    # Borea description images allow at most 2048 pixels per side and 1 MiB.
+    canvas.convert("RGB").resize((2048, 1024), Image.Resampling.LANCZOS).save(
+        OUT / "kitn-banner-borea.png", optimize=True
+    )
 
     # 03: Charcoal hero; larger Porkchop with small, offset foreground widgets.
     canvas = Image.new("RGBA", SIZE, "#181a1d")

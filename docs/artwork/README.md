@@ -6,7 +6,7 @@ Three 3200 × 1600 PNG banners, each showing fresh UI renders from the current s
 - [Dark](kitn-banner-02-dark.png): dark background, gold logo and two rows.
 - [Charcoal](kitn-banner-03-charcoal.png): larger Porkchop plot and floating widgets.
 
-The main README uses the dark banner. Borea's listing icon uses [kitn-logo-preview.png](kitn-logo-preview.png), the black logo on white.
+The main README uses the dark banner. Borea's listing icon uses [kitn-logo-preview.png](kitn-logo-preview.png), the black logo on white. Its description uses [kitn-banner-borea.png](kitn-banner-borea.png), the same dark artwork at 2048 × 1024 to fit Borea's image limits.
 
 To use the selected banner:
 
