@@ -160,9 +160,8 @@ namespace KITN
             _settings = settings; Selected = _empty = new VesselControlSession(null, settings);
         }
 
-        public static bool InPhysicsRange(Vehicle player, Vehicle vessel) => player != null && vessel != null
-            && player.HasPhysicsBubble && vessel.HasPhysicsBubble && ReferenceEquals(player.Parent, vessel.Parent)
-            && ReferenceEquals(player.BubbleLeader, vessel.BubbleLeader);
+        // Bubble leaders identify simulation groups, not control permissions or a distance limit.
+        public static bool SimulationAvailable(Vehicle vessel) => vessel?.HasPhysicsBubble == true;
 
         public static bool Controllable(Vehicle vessel) => vessel?.Parent != null && vessel.Parts != null
             && vessel.FlightComputer != null && vessel.IsControllable;
@@ -190,7 +189,7 @@ namespace KITN
             foreach (var vessel in vessels)
             {
                 present.Add(vessel);
-                if (Controllable(vessel) && InPhysicsRange(player, vessel)) _available.Add(vessel);
+                if (Controllable(vessel) && SimulationAvailable(vessel)) _available.Add(vessel);
             }
             if (player != null) present.Add(player);
             foreach (var vessel in new List<Vehicle>(_sessions.Keys))
@@ -208,9 +207,9 @@ namespace KITN
             foreach (var session in Sessions)
             {
                 string reason = !Controllable(session.Vehicle) ? "remote.control_unavailable"
-                    : !ReferenceEquals(session.Vehicle, player) && !InPhysicsRange(player, session.Vehicle) ? "remote.out_of_range"
-                    : session.Rendezvous.RequiresTargetPhysics && (!session.Vehicle.HasPhysicsBubble
-                        || !InPhysicsRange(session.Vehicle, session.Rendezvous.Target)) ? "remote.target_out_of_range" : null;
+                    : !ReferenceEquals(session.Vehicle, player) && !SimulationAvailable(session.Vehicle) ? "remote.out_of_range"
+                    : session.Rendezvous.RequiresTargetPhysics && (!SimulationAvailable(session.Vehicle)
+                        || !SimulationAvailable(session.Rendezvous.Target)) ? "remote.target_out_of_range" : null;
                 if (reason != null) session.Suspend(reason, now); else session.Resume(now);
             }
         }

@@ -26,8 +26,11 @@ internal static partial class Program
             return craft;
         }
         var a = Craft("Remote Alpha"); var b = Craft("Player Beta"); var debris = Craft("Uncontrolled Debris");
+        var otherBubble = (PhysicsBubble)RuntimeHelpers.GetUninitializedObject(typeof(PhysicsBubble)); GC.SuppressFinalize(otherBubble);
+        var bState = typeof(Vehicle).GetField("_threadWorkerUpdateState", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(b);
+        Set(bState, "Bubble", otherBubble);
         Set(debris, "FlightComputer", null);
-        Set(a, "_bubbleLeader", a); Set(b, "_bubbleLeader", a); Set(debris, "_bubbleLeader", a);
+        Set(a, "_bubbleLeader", a); Set(b, "_bubbleLeader", b); Set(debris, "_bubbleLeader", a);
         object Property(object value, string name) => value.GetType().GetProperty(name).GetValue(value);
         bool Flag(object value, string name) => (bool)Property(value, name);
         var fleet = New("RemoteControlFleet", Store);
@@ -42,6 +45,7 @@ internal static partial class Program
             controlOverride.SetValue(null, true);
             Observe(a, 100);
             alpha = Property(fleet, "Selected");
+            Check((bool)Call(fleet, "IsAvailable", b), "A controllable vessel in a separate physics bubble is hidden");
             var profile = (KITN.LaunchProfile)Property(alpha, "Profile");
             profile.DebugLoggingEnabled = false;
             profile.TargetApoapsisKm = 0;
@@ -86,12 +90,30 @@ internal static partial class Program
             var step = Property(preview, "Current");
             Observe(a, 505); Observe(b, 506);
             Check(Flag(rendezvous, "IsAutoDocking") && Equals(Property(preview, "Current"), step)
-                && Flag(options, "ShowGuidanceOverlay"), "Player switching cancels docking or disables its path rendering");
+                && Flag(options, "ShowGuidanceOverlay") && !Flag(alpha, "IsSuspended"),
+                "Nearby docking is suspended because the two vessels have different bubble leaders");
+            var targetComputer = b.FlightComputer;
+            Set(b, "FlightComputer", null); Observe(a, 506);
+            Check(!Flag(alpha, "IsSuspended"), "Docking incorrectly requires the target to be remotely controllable");
+            Set(b, "FlightComputer", targetComputer);
+            Set(rendezvous, "OwnPort", DockingTestPort()); Set(rendezvous, "TargetPort", DockingTestPort());
+            Set(a, "Body2Cce", FlightComputerAttitudeTrackTargetEx.YAW_FLIP); Set(b, "Body2Cce", doubleQuat.Identity);
+            a.FlightComputer.Helm2Asmb = a.FlightComputer.Ctrl2Asmb = doubleQuat.Identity;
+            Set(rendezvous, "CanMatch", true); Set(rendezvous, "CanDock", true);
+            Set(rendezvous, "_lastTime", 505.0); Set(rendezvous, "_standOff", 30.0); Set(rendezvous, "_dockingSafeDistance", 20.0);
+            Set(rendezvous, "_acceleration", 0.1); Set(rendezvous, "_minimumDeltaV", new float3(0.004f));
+            Set(rendezvous, "_relativePosition", new double3(103.72, 0, 0)); Set(rendezvous, "_relativeVelocity", new double3(-1.03, 0, 0));
+            Set(rendezvous, "Distance", 103.72); Set(rendezvous, "RelativeSpeed", 1.03); Set(rendezvous, "PointingError", 0.0);
+            Call(rendezvous, "Update", a, 506.1, true);
+            Check(Flag(rendezvous, "IsAutoDocking") && (double)rendezvous.GetType().GetField("_lastTime", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(rendezvous) == 506.1
+                && a.FlightComputer.RCSMode == FlightComputerRCSMode.Enabled,
+                "Autodocking did not advance control for a target 103.72 m away in another physics bubble");
+            step = Property(preview, "Current");
             var targetState = typeof(Vehicle).GetField("_threadWorkerUpdateState", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(b);
             Set(targetState, "Bubble", null); Observe(a, 507); Observe(a, 600);
             Check(Flag(alpha, "IsSuspended") && Flag(rendezvous, "IsAutoDocking") && Equals(Property(preview, "Current"), step),
                 "Target range loss cancels docking or clears the path preview");
-            Set(targetState, "Bubble", bubble); Observe(a, 601);
+            Set(targetState, "Bubble", otherBubble); Observe(a, 601);
             Check(!Flag(alpha, "IsSuspended") && Flag(rendezvous, "IsAutoDocking"), "Docking does not recover after prolonged target range loss");
             Observe(b, 602); Call(fleet, "Select", a);
             var remote = New("RemoteControlWindow");
@@ -103,7 +125,17 @@ internal static partial class Program
                 {
                     ImGui.NewFrame(); object[] args = { true, fleet, b }; Call(remote, "Draw", args); ImGui.Render();
                 }
-                Check(ImGui.GetDrawData().TotalVtxCount > 1000, "Remote Control widget did not render in " + locale);
+                Check(ImGui.GetDrawData().TotalVtxCount > 250, "Remote Control widget did not render in " + locale);
+                var bounds = Call(Store, "Find", "remote_control");
+                var io = ImGui.GetIO(); float scale = ConsoleStyle.EffectiveInterfaceScale;
+                Vehicle ClickFrame()
+                {
+                    ImGui.NewFrame(); object[] args = { true, fleet, b }; var result = (Vehicle)Call(remote, "Draw", args); ImGui.Render(); return result;
+                }
+                io.AddMousePosEvent(Value(bounds, "X") + Value(bounds, "Width") - 60 * scale, Value(bounds, "Y") + 129 * scale);
+                ClickFrame(); io.AddMouseButtonEvent(0, true); ClickFrame(); io.AddMouseButtonEvent(0, false);
+                Check(ReferenceEquals(ClickFrame(), b), "Compact Control button cannot select another vessel in " + locale);
+                io.AddMousePosEvent(-1000, -1000); ClickFrame();
                 Save("remote-control-" + locale + ".png", 1600, 1000);
                 Set(Window, "ControlSession", alpha); Set(Window, "Rendezvous", rendezvous); Set(Window, "_settingsOpen", true);
                 for (int frame = 0; frame < 4; frame++) Frame(true, true);
@@ -139,7 +171,7 @@ internal static partial class Program
             finally { stepField.SetValue(null, previousStep); }
             Warp(true, 0.06, 4); Check(Universe.SimulationSpeed == 1, "Slow native frames retain unsafe warp");
             Warp(false, 1.0 / 60, 2); Check(Universe.SimulationSpeed == 1, "Disabled physics warp permits accelerated control");
-            Console.WriteLine("PASS native vessel switching, remote selection, prolonged range loss/recovery, docking path state, paused cancellation, save reversion, EN/DE widget and physics-warp limits");
+            Console.WriteLine("PASS native separate-bubble remote selection and 103.72 m autodocking, non-controllable docking target, simulation loss/recovery, path state, paused cancellation, EN/DE compact widget and physics-warp limits");
         }
         finally
         {

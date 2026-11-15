@@ -12,9 +12,9 @@ namespace KITN
         public Vehicle Draw(ref bool open, RemoteControlFleet fleet, Vehicle player)
         {
             float scale = ConsoleStyle.EffectiveInterfaceScale;
-            ImGui.SetNextWindowSizeConstraints(new float2(360, 260) * scale, new float2(1200, 1200) * scale);
+            ImGui.SetNextWindowSizeConstraints(new float2(300, 160) * scale, new float2(1200, 1200) * scale);
             ImGuiCond condition = ImGuiCond.FirstUseEver;
-            float2 size = new float2(480, 430) * scale;
+            float2 size = new float2(420, 280) * scale;
             if (Layout != null) size = Layout.Prepare(size, scale, out condition);
             if (!ModWindowStyle.Begin("KITNRemoteControl", L10n.Get("remote.window"), ref open, size, condition,
                 detached: Layout?.Detached == true)) return null;
@@ -26,49 +26,48 @@ namespace KITN
                 try
                 {
                     ConsoleWidgets.Readout(L10n.Get("remote.vessel").AsSpan(), (fleet.Selected.Vehicle?.Id ?? L10n.Get("vehicle.none")).AsSpan());
-                    ImGui.TextColored(GameUiColors.Label, fleet.Selected.OperationStatus);
-                    if (fleet.Selected.IsSuspended) GameUiColors.MessageText(L10n.Get(fleet.Selected.SuspensionReason));
+                    ModWindowStyle.Hint(L10n.Get("remote.hint"));
+                    Status(fleet.Selected);
                 }
                 finally { PanelLayout.EndCard(); }
                 PanelLayout.BeginBody("remote-vessels");
                 try
                 {
-                    ImGui.TextWrapped(L10n.Get("remote.hint"));
                     if (!fleet.AllowRemote) GameUiColors.MessageText(L10n.Get("remote.disabled"));
-                    using (PanelLayout.Section("remote-nearby", "remote.nearby", "crosshair"))
+                    int rows = 0;
+                    foreach (var vessel in fleet.Available)
                     {
-                        if (fleet.Available.Count == 0) ImGui.TextWrapped(L10n.Get("remote.empty"));
-                        foreach (var vessel in fleet.Available)
+                        if (ReferenceEquals(vessel, fleet.Selected.Vehicle)) continue;
+                        rows++;
+                        var session = fleet.Find(vessel);
+                        ImGui.PushID(vessel.Id);
+                        try
                         {
-                            var session = fleet.Find(vessel);
-                            ImGui.PushID(vessel.Id);
+                            float width = ImGui.GetContentRegionAvail().X;
+                            float buttonWidth = Math.Max(80 * scale, ImGui.CalcTextSize(L10n.Get("remote.control")).X + 24 * scale);
+                            float x = ImGui.GetCursorPosX();
+                            ImGui.AlignTextToFramePadding();
+                            ImGui.TextColored(GameUiColors.Text, AutopilotWindow.FitHeaderText(vessel.Id, width - buttonWidth - 8 * scale));
+                            ModWindowStyle.Hint(ReferenceEquals(vessel, player) ? vessel.Id + " · " + L10n.Get("remote.player") : vessel.Id);
+                            ImGui.SameLine(); ImGui.SetCursorPosX(x + width - buttonWidth);
+                            ImGui.BeginDisabled(!fleet.AllowRemote);
                             try
                             {
-                                ImGui.TextColored(GameUiColors.Text, AutopilotWindow.FitHeaderText(vessel.Id, ImGui.GetContentRegionAvail().X));
-                                ModWindowStyle.Hint(vessel.Id);
-                                if (ReferenceEquals(vessel, player)) ImGui.TextColored(GameUiColors.Muted, L10n.Get("remote.player"));
-                                ImGui.TextColored(GameUiColors.Label, session?.OperationStatus ?? AutopilotWindow.StateName(AscentGuidance.AscentState.Idle));
-                                if (session?.IsSuspended == true) GameUiColors.MessageText(L10n.Get(session.SuspensionReason));
-                                bool current = ReferenceEquals(vessel, fleet.Selected.Vehicle);
-                                ImGui.BeginDisabled(current || !fleet.AllowRemote);
-                                try
-                                {
-                                    if (ImGui.Button(L10n.Get(current ? "remote.selected" : "remote.control") + "###select", new float2(-1, 0))) selected = vessel;
-                                }
-                                finally { ImGui.EndDisabled(); }
-                                ImGui.Separator();
+                                if (ImGui.Button(L10n.Get("remote.control") + "###select", new float2(buttonWidth, 0))) selected = vessel;
                             }
-                            finally { ImGui.PopID(); }
+                            finally { ImGui.EndDisabled(); }
+                            if (session?.IsActive == true || session?.IsSuspended == true) Status(session);
+                            ImGui.Separator();
                         }
+                        finally { ImGui.PopID(); }
                     }
-                    bool waitingHeader = false;
                     foreach (var session in fleet.Sessions)
                     {
-                        if (!session.IsSuspended || !session.IsActive || fleet.IsAvailable(session.Vehicle)) continue;
-                        if (!waitingHeader)
-                        { UiIcons.Text("timer", L10n.Get("remote.waiting"), GameUiColors.Label); waitingHeader = true; }
-                        ImGui.TextWrapped(session.Vehicle.Id + " · " + session.OperationStatus);
-                        GameUiColors.MessageText(L10n.Get(session.SuspensionReason));
+                        if (!session.IsSuspended || !session.IsActive || fleet.IsAvailable(session.Vehicle)
+                            || ReferenceEquals(session, fleet.Selected)) continue;
+                        rows++;
+                        ImGui.TextColored(GameUiColors.Text, AutopilotWindow.FitHeaderText(session.Vehicle.Id, ImGui.GetContentRegionAvail().X));
+                        Status(session);
                         ImGui.PushID(session.Vehicle.Id);
                         ImGui.BeginDisabled(session.PendingAction != null);
                         try
@@ -77,11 +76,20 @@ namespace KITN
                         }
                         finally { ImGui.EndDisabled(); ImGui.PopID(); }
                     }
+                    if (rows == 0) ImGui.TextColored(GameUiColors.Muted, L10n.Get("remote.empty"));
                 }
                 finally { PanelLayout.EndBody(); }
             }
             finally { ModWindowStyle.End(); }
             return selected;
+        }
+
+        private static void Status(VesselControlSession session)
+        {
+            string status = session.IsSuspended ? L10n.Get("remote.paused") + " · " + session.OperationStatus : session.OperationStatus;
+            ImGui.TextColored(session.IsSuspended ? GameUiColors.Pending : GameUiColors.Label,
+                AutopilotWindow.FitHeaderText(status, ImGui.GetContentRegionAvail().X));
+            if (session.IsSuspended) ModWindowStyle.Hint(L10n.Get(session.SuspensionReason));
         }
     }
 }
