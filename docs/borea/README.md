@@ -2,6 +2,8 @@
 
 [KITN.toml](KITN.toml) is the listing submitted to `KSAModding/content-index/listings/KITN.toml` in [PR #354](https://github.com/KSAModding/content-index/pull/354). It uses the selected logo on white, pinned to the artwork commit with its SHA-256, dimensions and byte size.
 
+[PR #355](https://github.com/KSAModding/content-index/pull/355) adds the selected dark banner at the top of the description. Borea requires a `ksa-image:banner` reference and a matching `images.description` record. The 2048 × 1024 copy is 642,709 bytes, within the 2048-pixel and 1 MiB limits; both hosted images passed the official image checks.
+
 The listing links to the [KITN forum thread](https://forums.ahwoo.com/forums/kitten-space-agency/mod-releases/kitn-autopilot-for-kitten-space-agency.1683/).
 
 The release source is `steve-787/KITN`. Borea's watcher starts with the latest release and picks up future releases automatically. KITN requires StarMap 0.5.4 or newer and was written against game build 2026.11.10.5801 on Windows.
