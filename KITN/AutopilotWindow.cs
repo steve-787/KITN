@@ -199,7 +199,7 @@ namespace KITN
             {
                 if (Rendezvous?.IsActive == true)
                 {
-                    if (DangerButton("rendezvous.stop")) _action = "rendezvous_stop";
+                    if (DangerButton(Rendezvous.IsAutoDocking ? "docking.stop" : "rendezvous.stop")) _action = "rendezvous_stop";
                 }
                 else if (Planner?.IsExecuting == true)
                 {

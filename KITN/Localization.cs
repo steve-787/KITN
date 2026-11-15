@@ -81,6 +81,7 @@ namespace KITN
                 ["rendezvous.status.ready"] = ("Ready", "Bereit"),
                 ["rendezvous.status.setup"] = ("Check setup", "Voraussetzungen prüfen"),
                 ["docking.ready"] = ("Ready for docking.", "Bereit zum Docking."),
+                ["docking.stop"] = ("Stop docking", "Docking stoppen"),
                 ["rendezvous.phase.correcting"] = ("Correcting approach", "Anflug korrigieren"),
                 ["dock.correcting_lateral"] = ("Correcting {0:N2} m lateral offset during approach; slowing closing if needed.", "Seitlichen Versatz von {0:N2} m im Anflug korrigieren; bei Bedarf langsamer annähern."),
                 ["dock.correcting_pointing"] = ("Correcting {0:N1}° port direction at the current distance.", "Portrichtung von {0:N1}° am aktuellen Abstand korrigieren."),

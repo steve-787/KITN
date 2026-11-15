@@ -52,7 +52,7 @@ namespace KITN
             "action.reset" => "rotate-ccw",
             "settings.open" => "settings",
             "diagnostics.open" => "sliders-horizontal",
-            "transfer.stop" or "landing.abort" or "rendezvous.stop" or "action.abort" or "action.cancel_countdown" => "square",
+            "transfer.stop" or "landing.abort" or "rendezvous.stop" or "docking.stop" or "action.abort" or "action.cancel_countdown" => "square",
             _ => "chevron-right"
         };
 

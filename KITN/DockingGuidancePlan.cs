@@ -45,9 +45,9 @@ namespace KITN
                 if (position.Length < 0.5 && velocity.Length <= settings.ContactSpeedMps + 0.01
                     && pointing <= settings.AlignmentToleranceDeg + Math.Max(0.5, Math.Min(5, nativeAngle)))
                 { reached = true; break; }
-                double dt = Math.Clamp(position.Length / Math.Max(0.01, settings.MaximumSpeedMps) / 200, 0.25, 60);
-                if (position.X < 60) dt = Math.Min(dt, Math.Max(1, 0.2 / settings.NearSpeedMps));
-                if (position.X < 12) dt = Math.Clamp(0.04 / Math.Max(0.01, Math.Min(settings.MaximumSpeedMps,
+                double dt = Math.Clamp(position.Length / Math.Max(0.01, command.DesiredVelocity.Length) / 200, 0.25, 60);
+                if (position.Length < 60) dt = Math.Min(dt, Math.Max(1, 0.2 / settings.NearSpeedMps));
+                if (position.Length < 12) dt = Math.Clamp(0.04 / Math.Max(0.01, Math.Min(settings.MaximumSpeedMps,
                     Math.Min(settings.NearSpeedMps, settings.ContactSpeedMps))), 0.25, 4);
                 dt = Math.Min(dt, Math.Max(0.25, 0.25 * Math.Sqrt(Math.Max(0.1, (command.Waypoint - position).Length) / acceleration)));
                 var previousStep = Step(command);

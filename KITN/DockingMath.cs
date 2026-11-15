@@ -60,19 +60,18 @@ namespace KITN
                     entryCleared = false;
                 if (!entryCleared)
                 {
-                    var side = lateral > 0.001 ? new LandingVector(0, position.Y / lateral, position.Z / lateral) : new LandingVector(0, 1, 0);
-                    LandingVector outside;
-                    bool around = position.X < clearance + 2 && position.X < standOff - 0.25;
-                    if (around && lateral < clearance + 2)
-                        outside = new LandingVector(position.X, 0, 0) + side * (clearance + 3);
-                    else if (position.X < standOff - 0.25)
-                        outside = new LandingVector(standOff, position.Y, position.Z);
-                    else outside = new LandingVector(standOff, 0, 0);
+                    var gate = new LandingVector(standOff, 0, 0);
+                    var outside = ClearanceWaypoint(position, relativeVelocity, gate, clearance, out bool bypass);
+                    bool around = bypass || position.X < clearance + 2 && position.X < standOff - 0.25;
                     DockingIssue gateIssue = lateral > settings.CorridorRadiusM * 0.75 ? DockingIssue.Lateral
                         : pointingError > finalAngle ? DockingIssue.Pointing : orientationError > finalAngle ? DockingIssue.Orientation
                         : !stable || angularRate > finalRate ? DockingIssue.AngularRate : DockingIssue.None;
                     var gatePhase = restart ? DockingPhase.Retreating : around ? DockingPhase.Routing : DockingPhase.Aligning;
-                    var gateVelocity = WaypointVelocity(outside - position, acceleration, settings.AlignmentSpeedMps, settings.BrakingMargin);
+                    double travelSpeed = Math.Min(settings.MaximumSpeedMps, settings.AlignmentSpeedMps);
+                    if (bypass) travelSpeed = Math.Min(travelSpeed, Math.Sqrt(acceleration * (clearance + 3) / (3 * settings.BrakingMargin)));
+                    // A single vector keeps diagonal legs straight. Tangent checkpoints
+                    // advance during travel, so intermediate corners do not require a stop.
+                    var gateVelocity = TravelVelocity(outside - position, acceleration, travelSpeed, settings.BrakingMargin);
                     // Never authorize a diagonal crossing of the boundary. Existing inward
                     // momentum is braked while the lateral/attitude alignment is completed.
                     double inwardLimit = Math.Sqrt(acceleration * Math.Max(0, position.X - standOff) / settings.BrakingMargin);
@@ -172,6 +171,49 @@ namespace KITN
 
         private static double NativeWindow(double value, double maximum)
             => double.IsFinite(value) && value > 0 ? Math.Min(value, maximum) : 0;
+
+        internal static double SegmentClearance(LandingVector start, LandingVector end)
+        {
+            var leg = end - start;
+            double fraction = leg.LengthSquared > 1e-12
+                ? Math.Clamp(-LandingVector.Dot(start, leg) / leg.LengthSquared, 0, 1) : 0;
+            return (start + leg * fraction).Length;
+        }
+
+        internal static LandingVector ClearanceWaypoint(LandingVector position, LandingVector velocity, LandingVector gate,
+            double clearance, out bool bypass)
+        {
+            // Circumscribed tangent legs stay outside the sphere, including the space
+            // between checkpoints. Three metres cover small tracking/pulse excursions.
+            double radius = clearance + 3;
+            bypass = SegmentClearance(position, gate) < radius;
+            if (!bypass) return gate;
+            double distance = position.Length;
+            if (distance < clearance + 0.5)
+                return (distance > 0.001 ? position.Unit : new LandingVector(0, 1, 0)) * (radius + 2);
+            double lateral = Math.Sqrt(position.Y * position.Y + position.Z * position.Z);
+            var side = lateral > 0.001 ? new LandingVector(0, position.Y, position.Z) / lateral
+                : new LandingVector(0, velocity.Y, velocity.Z).Length > 0.001
+                    ? new LandingVector(0, velocity.Y, velocity.Z).Unit : new LandingVector(0, 1, 0);
+            double angle = Math.Acos(Math.Clamp(position.X / distance, -1, 1));
+            if (distance < radius + 5)
+            {
+                // Near the arc, gently restore radius while retaining tangential
+                // momentum. Recomputing a tangent at each tiny radial excursion
+                // would alternately pull inward and kick outward with coarse jets.
+                var tangentDirection = new LandingVector(Math.Sin(angle), 0, 0) - side * Math.Cos(angle);
+                return position.Unit * radius + tangentDirection * (radius * 0.6);
+            }
+            double tangent = angle - Math.Acos(Math.Clamp(radius / distance, 0, 1));
+            double gateTangent = Math.Acos(Math.Clamp(radius / gate.X, 0, 1));
+            double next = Math.Max(gateTangent, tangent - Math.PI / 6);
+            double middle = (tangent + next) * 0.5;
+            double waypointRadius = radius / Math.Cos((tangent - next) * 0.5);
+            return new LandingVector(Math.Cos(middle), 0, 0) * waypointRadius + side * (Math.Sin(middle) * waypointRadius);
+        }
+
+        internal static LandingVector TravelVelocity(LandingVector offset, double acceleration, double speed, double margin)
+            => offset.Unit * Math.Min(speed, Math.Min(offset.Length / 4, Math.Sqrt(acceleration * offset.Length / margin)));
 
         internal static LandingVector WaypointVelocity(LandingVector offset, double acceleration, double speed, double margin)
         {

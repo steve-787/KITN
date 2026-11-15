@@ -182,6 +182,9 @@ internal static partial class Program
         Set(controller, "TargetPort", targetPort);
         foreach (double mount in new[] { 0.0, Math.PI / 2 })
         foreach (double translationQuantum in new[] { 0.004, 0.04, 0.1 })
+        foreach (var start in translationQuantum == 0.04
+            ? new[] { new double3(55, 0.08, 0), new double3(5, 70, 5), new double3(-70, 8, 5) }
+            : new[] { new double3(55, 0.08, 0) })
         {
             float quantum = translationQuantum > 0.004 ? 0.009f : 0.003f;
             port.Connector.Asmb2ParentAsmb = doubleQuat.CreateFromAxisAngle(double3.UnitY, mount);
@@ -189,7 +192,7 @@ internal static partial class Program
                 doubleQuat.CreateFromAxisAngle(double3.UnitX, 25 * Math.PI / 180),
                 doubleQuat.CreateFromAxisAngle(double3.UnitY, 4 * Math.PI / 180)), FlightComputerAttitudeTrackTargetEx.YAW_FLIP);
             var rotation = doubleQuat.Concatenate(port.Connector.Asmb2VehicleAsmb.Inverse(), initialPort);
-            var rates = double3.Zero; var position = new double3(55, 0.08, 0); var velocity = double3.Zero;
+            var rates = double3.Zero; var position = start; var velocity = double3.Zero;
             Set(controller, "_activeVehicle", vehicle); Set(controller, "_lastTime", 0.0);
             Set(controller, "_dockingSafeDistance", 35.0); Set(controller, "_dockingEntryCleared", false);
             Set(controller, "_minimumDeltaV", new float3((float)translationQuantum, (float)translationQuantum, (float)translationQuantum));
@@ -268,12 +271,12 @@ internal static partial class Program
                 if (position.X < 3) largestFinalAngle = Math.Max(largestFinalAngle, angle);
                 position += velocity * dt;
                 Check(!inputs.EngineOn && inputs.EngineThrottle == 0, "Residual docking commands the main engines");
-                Check(position.X > -0.5, "Coarse native pulses fly past the docking connector");
+                if (admittedOutside) Check(position.X > -0.5, "Coarse native pulses fly past the docking connector");
             }
             Call(controller, "Stop", false); Call(rcs, "Restore");
             Check(contact && admittedOutside, $"Coarse native RCS approach failed: mount={mount}, contact={contact}, admittedOutside={admittedOutside}, distance={position.Length():F2} m");
             Check(largestFinalAngle < 10, "Residual native RCS enters contact outside KSA's port-angle tolerance");
-            Console.WriteLine($"PASS coupled native coarse RCS attitude/translation sends Dock input: mount={mount * 180 / Math.PI:F0}°, pulse={translationQuantum:F3} m/s, contact={position.Length():F3} m, final angle <= {largestFinalAngle:F2}°, translation pulses={translationPulses}");
+            Console.WriteLine($"PASS coupled native coarse RCS attitude/translation sends Dock input: start={start}, mount={mount * 180 / Math.PI:F0}°, pulse={translationQuantum:F3} m/s, contact={position.Length():F3} m, final angle <= {largestFinalAngle:F2}°, translation pulses={translationPulses}");
         }
         Set(controller, "_dockingSafeDistance", 0.0);
         Set(controller, "TargetPort", null);

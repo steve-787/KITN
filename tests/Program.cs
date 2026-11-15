@@ -67,6 +67,7 @@ var tests = new (string Name, Action Run)[]
     ("Docking rejects unsafe approaches and uses stand-off, alignment and gentle final contact", DockingTests.Guards),
     ("Docking optional engine pushes reject unsafe layouts, minimum burns and poor braking room", DockingEngineTests.Safety),
     ("Docking enters clearance only after head-to-head outside alignment from front, side and rear", DockingClearanceTests.Envelope),
+    ("Docking tangent checkpoints shorten travel and reduce RCS without crossing clearance", DockingClearanceTests.EfficientRouting),
     ("Docking coarse RCS coasts accurately with fewer pulses and acknowledges hardware firing", DockingClearanceTests.FinePulses),
     ("Docking overlay follows live waypoints, estimates arrival and uses fixed buffers", DockingOverlayTests.Forecast),
     ("Rendezvous and Docking settings persist and migrate without overwriting damaged files", ProximitySettingsTests.Persistence),

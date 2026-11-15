@@ -1,0 +1,28 @@
+{
+  "verifiedAt": "2026-11-15T16:32:01.1422877+01:00",
+  "buildDll": "C:\\Users\\karst\\Desktop\\KITN\\KITN\\bin\\Release\\net9.0\\KITN.dll",
+  "installedDll": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\KITN.dll",
+  "sha256": "C33261870B1207F5E4924F7096C7CB7F70CF6DA4EA62B6FC5B63B618FBD36572",
+  "installedMatchesBuild": true,
+  "testedMatchesBuild": true,
+  "backupDirectory": "C:\\Users\\karst\\Documents\\My Games\\Kitten Space Agency\\mods\\KITN\\backups\\before-docking-routing-20261115-163200",
+  "gameRestarted": false,
+  "buildWarnings": 0,
+  "buildErrors": 0,
+  "checks": [
+    "Docking and English/German localization diagnostics",
+    "Geometric tangent checkpoint sweep in 3D",
+    "Clearance admission and axial docking corridor",
+    "Comparative route and RCS impulse simulations",
+    "Native full docking from front, side and rear with normal and side-mounted ports",
+    "Native minimum impulses, braking, engine assist and automatic Dock input",
+    "Native overlay and compact telemetry",
+    "Native Rendezvous and Docking toolbar actions"
+  ],
+  "simulation": {
+    "routeLengthReductionPercent": 11.7,
+    "translationImpulseReductionPercent": 8.9,
+    "scenarios": 4
+  },
+  "liveFuelConsumptionVerified": false
+}
